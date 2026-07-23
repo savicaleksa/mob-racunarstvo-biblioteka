@@ -201,3 +201,98 @@ export type CreateBookResponse = ApiBook;
 
 /** Response of `PATCH /books/:id` [librarian+] — the updated Book (Author + derived Availability). */
 export type UpdateBookResponse = ApiBook;
+
+/**
+ * A Book as embedded in a Loan row (Lending, issue 06): its title and its
+ * {@link ApiAuthor} joined in, so a Loan is meaningful without a second lookup.
+ * Deliberately omits derived Availability — a Loan view is about who holds what,
+ * not the Catalog's free-copy count — so the showcase JOIN stays a clean
+ * loans→books→authors→users join with no correlated availability subquery.
+ */
+export interface LoanBook {
+  id: number;
+  title: string;
+  /** The Book's single Author, joined in. */
+  author: ApiAuthor;
+}
+
+/**
+ * The borrowing Member as embedded in a Loan row (Lending, issue 06). Only the
+ * fields a Librarian needs to identify who holds a Book — never the password
+ * hash. Used by the Active Loans view (`GET /loans/active`).
+ */
+export interface LoanMember {
+  id: number;
+  email: string;
+}
+
+/**
+ * Body of `POST /loans` [librarian+] (Lending, issue 06). Issues a Loan of a
+ * Book to a Member. `bookId` and `memberId` must reference an existing Book and
+ * an existing user (validated in the service — a clean domain error, never a raw
+ * 500). `dueDate` is optional: when omitted the Loan's Due Date defaults to the
+ * borrow date plus 14 days; when present (an ISO-8601 date-time) it overrides
+ * that default. Issuing is rejected when the Book has no Availability
+ * (`count(active loans) === totalCopies`, ADR-0007).
+ */
+export interface IssueLoanRequest {
+  bookId: number;
+  memberId: number;
+  /** ISO-8601 Due Date override; defaults to borrow date + 14 days when omitted. */
+  dueDate?: string;
+}
+
+/**
+ * One row of the Active Loans view (`GET /loans/active` [librarian+], issue 06):
+ * the showcase multi-table JOIN. Each row carries the borrowed {@link LoanBook}
+ * (with its Author), the borrowing {@link LoanMember}, the Due Date, and an
+ * `overdue` flag (Active AND `dueDate < now`). Only Active Loans
+ * (`returnedAt IS NULL`) appear. Rendered by the Librarian Active Loans screen
+ * (ticket 10).
+ */
+export interface ActiveLoanRow {
+  id: number;
+  book: LoanBook;
+  member: LoanMember;
+  /** ISO-8601 borrow date. */
+  borrowedAt: string;
+  /** ISO-8601 Due Date. */
+  dueDate: string;
+  /** True when this Active Loan's Due Date is in the past. */
+  overdue: boolean;
+}
+
+/** Response of `GET /loans/active` [librarian+] — the Active Loans showcase JOIN. */
+export type ActiveLoansResponse = ActiveLoanRow[];
+
+/** Response of `POST /loans` [librarian+] — the freshly issued (Active) Loan. */
+export type IssueLoanResponse = ActiveLoanRow;
+
+/** Response of `PATCH /loans/:id/return` [librarian+] — the recorded Return. */
+export interface ReturnLoanResponse {
+  id: number;
+  /** ISO-8601 timestamp the Loan was returned at. */
+  returnedAt: string;
+}
+
+/**
+ * One of the caller's own Loans (`GET /loans/me` [auth], issue 06): each carries
+ * its {@link LoanBook} (with Author). Active Loans have `returnedAt: null` and
+ * an `overdue` flag; historical (returned) Loans carry their `returnedAt` and
+ * are never `overdue`. Rendered by the Member My Loans screen (ticket 09).
+ */
+export interface MyLoan {
+  id: number;
+  book: LoanBook;
+  /** ISO-8601 borrow date. */
+  borrowedAt: string;
+  /** ISO-8601 Due Date. */
+  dueDate: string;
+  /** ISO-8601 return date, or `null` while the Loan is still Active. */
+  returnedAt: string | null;
+  /** True when this Loan is Active (not returned) AND its Due Date is in the past. */
+  overdue: boolean;
+}
+
+/** Response of `GET /loans/me` [auth] — the caller's own Active + historical Loans. */
+export type MyLoansResponse = MyLoan[];
