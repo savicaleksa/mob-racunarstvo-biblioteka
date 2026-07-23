@@ -1,20 +1,26 @@
 import type {
   BookDetailResponse,
   BooksListResponse,
+  CreateBookRequest,
+  CreateBookResponse,
   ListBooksQuery,
+  UpdateBookRequest,
+  UpdateBookResponse,
 } from "@repo/shared";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { apiClient } from "./client";
 
 /**
- * Books catalog read surface (issue 03), consumed by the Member Catalog and Book
- * detail screens (ticket 09). Structured as one file per domain — a thin
- * `apiClient` wrapper, a query-key factory, and the TanStack Query hooks — so the
- * later staff/owner tickets (10/11) can mirror this shape for their own domains.
+ * Books catalog read + write surface. Reads (issue 03) back the Member Catalog
+ * and Book detail (ticket 09); the CRUD writes (issue 05) back the Librarian
+ * Book management screens (ticket 10). Structured as one file per domain — a
+ * thin `apiClient` wrapper, a query-key factory, and the TanStack Query hooks.
  *
  * Every call flows through {@link apiClient}, so the JWT is attached and 401s are
  * handled centrally; types come from `@repo/shared` (the single source of truth).
+ * Writes invalidate `bookKeys.all` so the Catalog and derived Availability
+ * refresh (Availability is computed on read, ADR-0007).
  */
 export const booksApi = {
   /**
@@ -43,6 +49,33 @@ export const booksApi = {
     const { data } = await apiClient.get<BookDetailResponse>(`/books/${id}`);
     return data;
   },
+
+  /** `POST /books` [librarian+] — create a Book (bad authorId → 400 message). */
+  async create(body: CreateBookRequest): Promise<CreateBookResponse> {
+    const { data } = await apiClient.post<CreateBookResponse>("/books", body);
+    return data;
+  },
+
+  /** `PATCH /books/:id` [librarian+] — update a Book, including Total Copies. */
+  async update(
+    id: number,
+    body: UpdateBookRequest,
+  ): Promise<UpdateBookResponse> {
+    const { data } = await apiClient.patch<UpdateBookResponse>(
+      `/books/${id}`,
+      body,
+    );
+    return data;
+  },
+
+  /**
+   * `DELETE /books/:id` [librarian+] — remove a Book. Rejected with a 409
+   * (surfaced as a domain message) when the Book has ANY Loan (RESTRICT), so
+   * lending history is preserved.
+   */
+  async remove(id: number): Promise<void> {
+    await apiClient.delete(`/books/${id}`);
+  },
 };
 
 /** Query-key factory for the Books cache — one place so keys stay consistent. */
@@ -67,5 +100,38 @@ export function useBook(id: number) {
     queryKey: bookKeys.detail(id),
     queryFn: () => booksApi.get(id),
     enabled: Number.isFinite(id) && id > 0,
+  });
+}
+
+/** Create a Book, then refresh the Catalog (list + Availability). */
+export function useCreateBook() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: CreateBookRequest) => booksApi.create(body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: bookKeys.all });
+    },
+  });
+}
+
+/** Update a Book (incl. Total Copies), then refresh the Catalog + Availability. */
+export function useUpdateBook(id: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: UpdateBookRequest) => booksApi.update(id, body),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: bookKeys.all });
+    },
+  });
+}
+
+/** Delete a Book, then refresh the Catalog. */
+export function useDeleteBook() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => booksApi.remove(id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: bookKeys.all });
+    },
   });
 }
