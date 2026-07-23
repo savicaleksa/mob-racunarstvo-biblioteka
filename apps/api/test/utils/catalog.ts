@@ -1,9 +1,11 @@
 import type { INestApplication } from "@nestjs/common";
+import { Role } from "@repo/shared";
+import { eq } from "drizzle-orm";
 import request from "supertest";
 
 import type { DrizzleDatabase } from "../../src/db/connection";
 import { DRIZZLE } from "../../src/db/drizzle.module";
-import { loans } from "../../src/db/schema";
+import { loans, users } from "../../src/db/schema";
 import { seedCatalog } from "../../src/db/seed";
 
 /**
@@ -35,6 +37,32 @@ export async function register(
 ): Promise<{ token: string; user: { id: number; role: string } }> {
   const res = await request(app.getHttpServer())
     .post("/auth/register")
+    .send({ email, password });
+  return res.body;
+}
+
+/**
+ * Mint a LIBRARIAN token. There is no self-serve promotion route until ticket
+ * 07, so we register a plain user (a MEMBER unless it is the very first, which
+ * would be the OWNER), flip their `role` to LIBRARIAN directly in the test DB,
+ * then log in again so the fresh JWT carries the LIBRARIAN role its payload is
+ * checked against. Register the OWNER first if you need a distinct MEMBER.
+ */
+export async function registerLibrarian(
+  app: INestApplication,
+  email: string,
+  password = "password123",
+): Promise<{ token: string; user: { id: number; role: string } }> {
+  const registered = await register(app, email, password);
+
+  db(app)
+    .update(users)
+    .set({ role: Role.LIBRARIAN })
+    .where(eq(users.id, registered.user.id))
+    .run();
+
+  const res = await request(app.getHttpServer())
+    .post("/auth/login")
     .send({ email, password });
   return res.body;
 }

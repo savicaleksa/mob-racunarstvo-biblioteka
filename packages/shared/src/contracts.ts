@@ -124,6 +124,32 @@ export type AuthorsListResponse = ApiAuthor[];
 export type AuthorDetailResponse = ApiAuthor;
 
 /**
+ * Body of `POST /authors` [librarian+] (Author CRUD, issue 04). `name` is
+ * required; `bio` and `birthYear` are optional and default to `null` when
+ * omitted, mirroring their nullable columns.
+ */
+export interface CreateAuthorRequest {
+  name: string;
+  /** Free-text biography; `null`/omitted when unknown. */
+  bio?: string | null;
+  /** Year of birth; `null`/omitted when unknown. */
+  birthYear?: number | null;
+}
+
+/**
+ * Body of `PATCH /authors/:id` [librarian+] (Author CRUD, issue 04). Every
+ * field is optional — only the keys present are updated; `bio` and `birthYear`
+ * may be set to `null` to clear them.
+ */
+export type UpdateAuthorRequest = Partial<CreateAuthorRequest>;
+
+/** Response of `POST /authors` [librarian+] — the created Author. */
+export type CreateAuthorResponse = ApiAuthor;
+
+/** Response of `PATCH /authors/:id` [librarian+] — the updated Author. */
+export type UpdateAuthorResponse = ApiAuthor;
+
+/**
  * Query parameters for `GET /books` [auth]. `search` is a tokenized query
  * (ADR-0009) matched over `title + author name`; `available`, when true,
  * restricts the list to Books whose Availability is greater than zero.
