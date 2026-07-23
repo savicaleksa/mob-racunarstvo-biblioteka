@@ -1,5 +1,6 @@
 import { Module, type DynamicModule } from "@nestjs/common";
 
+import { AuthModule } from "./auth/auth.module";
 import { DrizzleModule, type DrizzleModuleOptions } from "./db/drizzle.module";
 import { HealthController } from "./health/health.controller";
 
@@ -20,7 +21,7 @@ export class AppModule {
   static register(drizzle: DrizzleModuleOptions = {}): DynamicModule {
     return {
       module: AppModule,
-      imports: [DrizzleModule.forRoot(drizzle)],
+      imports: [DrizzleModule.forRoot(drizzle), AuthModule],
       controllers: [HealthController],
     };
   }

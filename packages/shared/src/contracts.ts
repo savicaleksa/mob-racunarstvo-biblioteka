@@ -19,12 +19,51 @@ export interface HealthResponse {
 }
 
 /**
- * A user as exposed over the API. The password hash is never serialised.
- * (Fleshed out by ticket 02 — Auth API; kept minimal here.)
+ * A user as exposed over the API. The password hash is never serialised —
+ * it is deliberately absent from this shape, which is the only user
+ * representation that crosses the HTTP boundary.
  */
 export interface ApiUser {
   id: number;
   email: string;
   role: Role;
+  /** ISO-8601 timestamp of when the account was created. */
   createdAt: string;
+}
+
+/**
+ * Decoded JWT access-token payload (ADR-0005). `sub` is the user id and `role`
+ * is their role at issue time; the token carries nothing else. Both `apps/api`
+ * (signing/verifying) and `apps/mobile` (decoding for UI hints) rely on it.
+ */
+export interface JwtPayload {
+  /** Subject — the authenticated user's id. */
+  sub: number;
+  role: Role;
+}
+
+/** Body of `POST /auth/register` [public]. */
+export interface RegisterRequest {
+  email: string;
+  password: string;
+}
+
+/** Body of `POST /auth/login` [public]. */
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+/**
+ * Response of `POST /auth/register` and `POST /auth/login`: a single JWT access
+ * token (ADR-0005) plus the authenticated user's public profile.
+ */
+export interface AuthResponse {
+  token: string;
+  user: ApiUser;
+}
+
+/** Response of `GET /auth/me` [auth] — the caller's own profile. */
+export interface MeResponse {
+  user: ApiUser;
 }
