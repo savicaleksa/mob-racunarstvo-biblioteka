@@ -1,4 +1,4 @@
-import type { Role } from "./roles";
+import type { AssignableRole, Role } from "./roles";
 
 /**
  * Shared HTTP contract shapes — the single source of truth imported by both
@@ -296,3 +296,31 @@ export interface MyLoan {
 
 /** Response of `GET /loans/me` [auth] — the caller's own Active + historical Loans. */
 export type MyLoansResponse = MyLoan[];
+
+/**
+ * Response of `GET /users` [owner] (Owner user & role management, issue 07): the
+ * full roster of registered users, each as the public {@link ApiUser} shape
+ * (`id`, `email`, `role`, `createdAt`) — the password hash is never included.
+ * An Owner reads this to see who holds which role; rendered by the Owner Users
+ * screen (ticket 11).
+ */
+export type UsersListResponse = ApiUser[];
+
+/**
+ * Body of `PATCH /users/:id/role` [owner] (Owner user & role management, issue
+ * 07). Changes a user's role. `role` is constrained to {@link AssignableRole}
+ * (`LIBRARIAN | MEMBER`) — `OWNER` is deliberately not a member of the type, so
+ * it can never be requested as a target (the API validates against
+ * `ASSIGNABLE_ROLES` and rejects `OWNER` with a 400). The bootstrap Owner is the
+ * only source of the `OWNER` role (ADR-0006).
+ */
+export interface UpdateUserRoleRequest {
+  role: AssignableRole;
+}
+
+/**
+ * Response of `PATCH /users/:id/role` [owner] — the updated user as the public
+ * {@link ApiUser} shape, reflecting the new role. A fresh login for that user
+ * will carry the new role in its JWT.
+ */
+export type UpdateUserRoleResponse = ApiUser;
