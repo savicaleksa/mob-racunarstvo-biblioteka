@@ -7,15 +7,12 @@
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "platforms": ["ios", "android"],
     "ios": {
       "supportsTablet": true
     },
     "android": {
       "edgeToEdgeEnabled": true
-    },
-    "web": {
-      "bundler": "metro",
-      "output": "static"
     },
     "plugins": [
       "expo-router",
