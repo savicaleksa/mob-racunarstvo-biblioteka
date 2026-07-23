@@ -71,5 +71,22 @@ Config via env vars: `DATABASE_URL` (default `library.db`), `PORT` (default `300
 pnpm start         # start the Expo dev server; open in Expo Go over LAN
 ```
 
-The API base URL is overridable via `EXPO_PUBLIC_API_URL` (used by later
-tickets; the phone and the machine running the API must share a network).
+The app is an Expo Router shell (ADR-0010): register / log in, stay signed in
+across launches (the JWT lives in Expo SecureStore and is attached to every
+request), and land on role-gated screens (`/member`, `/librarian`, `/owner`).
+When the token expires or is invalid, a `401` clears the session and returns you
+to login.
+
+**Pointing the app at your API.** In development the base URL auto-detects the
+dev machine's LAN IP from Expo's manifest and targets port `3000`, so a physical
+phone in Expo Go on the same network reaches your API with no configuration.
+Override it with `EXPO_PUBLIC_API_URL` when auto-detect does not fit:
+
+```sh
+# Android emulator (host loopback):
+EXPO_PUBLIC_API_URL=http://10.0.2.2:3000 pnpm start
+# an `expo start --tunnel` session, or a non-default host/port:
+EXPO_PUBLIC_API_URL=https://<your-tunnel-host> pnpm start
+```
+
+The phone and the machine running the API must share a network (unless tunneling).

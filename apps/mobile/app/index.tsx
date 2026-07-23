@@ -1,42 +1,25 @@
-import { StyleSheet, View } from "react-native";
-import { Text } from "react-native-paper";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Redirect } from "expo-router";
 
-import { Role } from "@repo/shared";
+import { useAuth } from "../src/auth/auth-context";
+import { LOGIN_ROUTE, roleHome } from "../src/navigation/routes";
+import { FullScreenLoader } from "../src/ui/full-screen-loader";
 
 /**
- * Placeholder home screen for the walking skeleton (issue 01). It renders
- * nothing functional — its purpose is to prove the Expo Router + React Native
- * Paper stack boots in Expo Go and that the shared-types package (`@repo/shared`)
- * resolves and type-checks on the mobile side too. The list of roles below is
- * read straight from the single source of truth in `@repo/shared`.
+ * The `/` redirect hub. While the session hydrates from SecureStore it shows a
+ * loader; then it sends the user to login (unauthenticated) or to their
+ * role-appropriate home (authenticated) — so a returning user lands straight on
+ * their screens without re-entering credentials.
  */
-export default function HomeScreen() {
-  const insets = useSafeAreaInsets();
+export default function Index() {
+  const { status, user } = useAuth();
 
-  return (
-    <View style={[styles.container, { paddingTop: insets.top + 24 }]}>
-      <Text variant="headlineMedium">Library Management</Text>
-      <Text variant="bodyMedium" style={styles.subtitle}>
-        Walking skeleton — nothing here yet.
-      </Text>
-      <Text variant="labelLarge" style={styles.subtitle}>
-        Roles: {Object.values(Role).join(" · ")}
-      </Text>
-    </View>
-  );
+  if (status === "loading") {
+    return <FullScreenLoader />;
+  }
+
+  if (status !== "authenticated" || !user) {
+    return <Redirect href={LOGIN_ROUTE} />;
+  }
+
+  return <Redirect href={roleHome(user.role)} />;
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 24,
-    gap: 12,
-  },
-  subtitle: {
-    textAlign: "center",
-    opacity: 0.7,
-  },
-});
