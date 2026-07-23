@@ -164,3 +164,40 @@ export type BooksListResponse = ApiBook[];
 
 /** Response of `GET /books/:id` [auth] — one Book with Author + Availability. */
 export type BookDetailResponse = ApiBook;
+
+/**
+ * Body of `POST /books` [librarian+] (Book CRUD, issue 05). `title` and
+ * `authorId` are required — `authorId` must reference an existing Author or the
+ * request is rejected with a clean domain error (never a raw 500). `totalCopies`
+ * is optional and defaults to 1 (the Total Copies column default); `isbn`,
+ * `publishedYear` and `description` are optional (nullable) and default to
+ * `null` when omitted. Availability is never accepted here — it is derived on
+ * read (ADR-0007).
+ */
+export interface CreateBookRequest {
+  title: string;
+  /** The Author this Book is by; must reference an existing Author. */
+  authorId: number;
+  /** Number of physical copies the library owns; defaults to 1 when omitted. */
+  totalCopies?: number;
+  /** ISBN; `null`/omitted when unknown. */
+  isbn?: string | null;
+  /** Year of publication; `null`/omitted when unknown. */
+  publishedYear?: number | null;
+  /** Free-text description; `null`/omitted when unknown. */
+  description?: string | null;
+}
+
+/**
+ * Body of `PATCH /books/:id` [librarian+] (Book CRUD, issue 05). Every field is
+ * optional — only the keys present are updated, including `totalCopies`. A
+ * present `authorId` must still reference an existing Author; `isbn`,
+ * `publishedYear` and `description` may be set to `null` to clear them.
+ */
+export type UpdateBookRequest = Partial<CreateBookRequest>;
+
+/** Response of `POST /books` [librarian+] — the created Book (Author + derived Availability). */
+export type CreateBookResponse = ApiBook;
+
+/** Response of `PATCH /books/:id` [librarian+] — the updated Book (Author + derived Availability). */
+export type UpdateBookResponse = ApiBook;

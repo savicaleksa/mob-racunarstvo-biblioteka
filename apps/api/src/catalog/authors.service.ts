@@ -14,17 +14,8 @@ import { asc, eq } from "drizzle-orm";
 import type { DrizzleDatabase } from "../db/connection";
 import { DRIZZLE } from "../db/drizzle.module";
 import { authors, type Author } from "../db/schema";
+import { isForeignKeyConstraintError } from "./sqlite-errors";
 import { tokenizedSearchFilter } from "./tokenized-search";
-
-/**
- * Prefix of better-sqlite3's error code for any constraint violation. A
- * RESTRICT foreign key (ADR-0008) surfaces here — SQLite reports the RESTRICT
- * subcode as `SQLITE_CONSTRAINT_TRIGGER` (not `..._FOREIGNKEY`), so we match on
- * the shared prefix. On a bare `DELETE authors`, the only constraint that can
- * fire is the Books→Authors FK, so this reliably means "the Author still has
- * Books"; we surface it as a friendly 409 instead of a raw 500.
- */
-const SQLITE_CONSTRAINT_PREFIX = "SQLITE_CONSTRAINT";
 
 /**
  * Read use-cases for the Author side of the Catalog (issue 03). Lists Authors
@@ -135,17 +126,6 @@ export class AuthorsService {
       throw error;
     }
   }
-}
-
-/** True when `error` is a better-sqlite3 constraint failure (the RESTRICT FK). */
-function isForeignKeyConstraintError(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    typeof (error as { code?: unknown }).code === "string" &&
-    (error as { code: string }).code.startsWith(SQLITE_CONSTRAINT_PREFIX)
-  );
 }
 
 /** Project an `authors` row to the shared {@link ApiAuthor} wire shape. */
