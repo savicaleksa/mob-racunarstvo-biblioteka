@@ -1,0 +1,22 @@
+{
+  "extends": "@repo/typescript-config/base.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "outDir": "./dist",
+    "rootDir": "./",
+    "baseUrl": "./",
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": true,
+    "esModuleInterop": true,
+    "moduleDetection": "auto",
+    "noUncheckedIndexedAccess": false
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts", "drizzle.config.ts"],
+  "exclude": ["node_modules", "dist"]
+}

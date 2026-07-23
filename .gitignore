@@ -15,6 +15,19 @@ node_modules
 # Testing
 coverage
 
+# SQLite database files (reproduced from migrations + seed, never committed — ADR-0004)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# Expo
+.expo/
+apps/mobile/.expo/
+expo-env.d.ts
+
 # Turbo
 .turbo
 
