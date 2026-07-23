@@ -11,7 +11,8 @@
     "test": "jest --config test/jest-e2e.json --runInBand",
     "test:e2e": "jest --config test/jest-e2e.json --runInBand",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "db:seed": "ts-node src/db/seed.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.0",
