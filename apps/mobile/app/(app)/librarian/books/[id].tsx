@@ -8,6 +8,7 @@ import {
   Divider,
   Snackbar,
   Text,
+  useTheme,
 } from "react-native-paper";
 
 import { useBook, useDeleteBook } from "../../../../src/api/books";
@@ -24,6 +25,7 @@ export default function LibrarianBookDetailScreen() {
   const params = useLocalSearchParams<{ id: string }>();
   const id = Number(params.id);
   const router = useRouter();
+  const theme = useTheme();
   const { data: book, isPending, isError, error, refetch } = useBook(id);
   const deleteBook = useDeleteBook();
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -127,7 +129,7 @@ export default function LibrarianBookDetailScreen() {
           <Button
             mode="outlined"
             icon="delete"
-            textColor="#B3261E"
+            textColor={theme.colors.error}
             onPress={confirmDelete}
             loading={deleteBook.isPending}
             disabled={deleteBook.isPending}

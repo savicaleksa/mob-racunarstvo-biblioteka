@@ -10,6 +10,7 @@ import {
   FAB,
   Snackbar,
   Text,
+  useTheme,
 } from "react-native-paper";
 
 import { getErrorMessage } from "../../../../src/api/errors";
@@ -117,6 +118,7 @@ function LoanRow({
   returning: boolean;
   onReturn: () => void;
 }) {
+  const theme = useTheme();
   return (
     <Card>
       <Card.Title
@@ -137,8 +139,8 @@ function LoanRow({
               compact
               icon="alert"
               mode="flat"
-              style={styles.overdueChip}
-              textStyle={styles.overdueChipText}
+              style={{ backgroundColor: theme.colors.errorContainer }}
+              textStyle={{ color: theme.colors.onErrorContainer }}
             >
               Overdue
             </Chip>
@@ -172,8 +174,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  overdueChip: { backgroundColor: "#B3261E" },
-  overdueChipText: { color: "#FFFFFF" },
   centered: {
     flex: 1,
     alignItems: "center",

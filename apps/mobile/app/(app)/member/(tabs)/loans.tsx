@@ -7,6 +7,7 @@ import {
   Card,
   Chip,
   Text,
+  useTheme,
 } from "react-native-paper";
 
 import { getErrorMessage } from "../../../../src/api/errors";
@@ -99,6 +100,7 @@ export default function MyLoansScreen() {
 
 /** One Loan: Book + Author, with a Due Date / return date and Overdue status. */
 function LoanRow({ loan }: { loan: MyLoan }) {
+  const theme = useTheme();
   const returned = loan.returnedAt !== null;
   return (
     <Card>
@@ -122,8 +124,8 @@ function LoanRow({ loan }: { loan: MyLoan }) {
                 compact
                 icon="alert"
                 mode="flat"
-                style={styles.overdueChip}
-                textStyle={styles.overdueChipText}
+                style={{ backgroundColor: theme.colors.errorContainer }}
+                textStyle={{ color: theme.colors.onErrorContainer }}
               >
                 Overdue
               </Chip>
@@ -148,8 +150,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  overdueChip: { backgroundColor: "#B3261E" },
-  overdueChipText: { color: "#FFFFFF" },
   centered: {
     flex: 1,
     alignItems: "center",

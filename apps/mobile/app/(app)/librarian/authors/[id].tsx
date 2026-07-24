@@ -7,6 +7,7 @@ import {
   Divider,
   Snackbar,
   Text,
+  useTheme,
 } from "react-native-paper";
 
 import { useAuthor, useDeleteAuthor } from "../../../../src/api/authors";
@@ -23,6 +24,7 @@ export default function LibrarianAuthorDetailScreen() {
   const params = useLocalSearchParams<{ id: string }>();
   const id = Number(params.id);
   const router = useRouter();
+  const theme = useTheme();
   const { data: author, isPending, isError, error, refetch } = useAuthor(id);
   const deleteAuthor = useDeleteAuthor();
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -112,7 +114,7 @@ export default function LibrarianAuthorDetailScreen() {
           <Button
             mode="outlined"
             icon="delete"
-            textColor="#B3261E"
+            textColor={theme.colors.error}
             onPress={confirmDelete}
             loading={deleteAuthor.isPending}
             disabled={deleteAuthor.isPending}
