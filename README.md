@@ -30,13 +30,10 @@ pnpm install
 # 2. Recreate the database from migrations + seed the Catalog (one command):
 pnpm --filter @repo/api db:reset
 
-# 3. Start the API (listens on port 3000):
-pnpm --filter @repo/api start:dev
+# 3. Start the API (port 3000) and the Expo dev server together:
+pnpm dev
 
-# 4. In a second terminal, start the mobile app:
-pnpm --filter @repo/mobile start
-
-# 5. Open the printed QR code in Expo Go on a phone sharing the same Wi-Fi.
+# 4. Open the printed QR code in Expo Go on a phone sharing the same Wi-Fi.
 ```
 
 Then follow the [demo flow](#demo-flow-all-three-roles) to register the Owner,
@@ -84,7 +81,7 @@ pnpm --filter @repo/api db:seed       # seed the Catalog without deleting the DB
 ## Running the API (`apps/api`)
 
 ```sh
-pnpm --filter @repo/api start:dev   # boot in watch mode
+pnpm --filter @repo/api dev         # boot in watch mode (this app only)
 # or, after `pnpm --filter @repo/api build`:
 pnpm --filter @repo/api start       # node dist/main.js
 ```
@@ -104,7 +101,7 @@ The defaults are fine for grading — no `.env` file is required.
 ## Running the mobile app (`apps/mobile`)
 
 ```sh
-pnpm --filter @repo/mobile start    # start the Expo dev server (expo start)
+pnpm --filter @repo/mobile dev      # start the Expo dev server (expo start)
 ```
 
 Scan the QR with Expo Go on a physical phone, or use `pnpm --filter @repo/mobile
@@ -189,5 +186,5 @@ pnpm build         # build shared + api
 pnpm lint          # eslint across all workspaces
 pnpm check-types   # tsc --noEmit across all workspaces
 pnpm test          # api e2e suite (supertest against an ephemeral SQLite DB)
-pnpm dev           # run the dev task across workspaces
+pnpm dev           # api in watch mode + Expo dev server, side by side
 ```

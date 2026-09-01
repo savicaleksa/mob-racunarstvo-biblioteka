@@ -4,8 +4,9 @@
   "private": true,
   "scripts": {
     "build": "nest build",
+    "dev": "nest start --watch",
     "start": "node dist/main.js",
-    "start:dev": "nest start --watch",
+    "start:dev": "pnpm dev",
     "check-types": "tsc --noEmit -p tsconfig.json",
     "lint": "eslint . --max-warnings 0",
     "test": "jest --config test/jest-e2e.json --runInBand",
