@@ -8,6 +8,12 @@ import { createTestApp } from "./utils/create-test-app";
  * Auth API + RBAC-primitive proving ground (issue 02). Exercised end to end at
  * the HTTP seam (spec.md "Testing Decisions") against a fresh ephemeral SQLite
  * database per app instance, so the first-user bootstrap is observed live.
+ *
+ * Also pins the email-normalisation rule the whole app depends on: every email
+ * is trimmed and lowercased before it is stored or matched, and `users.email` is
+ * unique under `COLLATE NOCASE`, so one address can never become two accounts.
+ * Lending relies on this — a Loan names its borrower by email (ADR-0011), so a
+ * case-variant duplicate would make that reference ambiguous.
  */
 describe("Auth (e2e)", () => {
   let app: INestApplication;
@@ -140,6 +146,34 @@ describe("Auth (e2e)", () => {
         .get("/auth/me")
         .set("Authorization", "Bearer not.a.jwt");
       expect(res.status).toBe(401);
+    });
+  });
+
+  describe("email normalisation", () => {
+    it("stores a mixed-case email in its canonical lowercase form", async () => {
+      const res = await register("OWNER@Example.COM");
+      expect(res.status).toBe(201);
+      expect(res.body.user.email).toBe("owner@example.com");
+    });
+
+    it("trims surrounding whitespace before storing", async () => {
+      const res = await register("  owner@example.com  ");
+      expect(res.status).toBe(201);
+      expect(res.body.user.email).toBe("owner@example.com");
+    });
+
+    it("treats a case-variant of a registered email as a duplicate (409)", async () => {
+      await register("owner@example.com");
+      const res = await register("Owner@Example.com");
+      expect(res.status).toBe(409);
+    });
+
+    it("logs in regardless of the casing used at registration", async () => {
+      await register("Owner@Example.COM");
+      const res = await login("owner@example.com");
+      // 201: POST /auth/login keeps Nest's default POST status (see above).
+      expect(res.status).toBe(201);
+      expect(res.body.user.email).toBe("owner@example.com");
     });
   });
 });

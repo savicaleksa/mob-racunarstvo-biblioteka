@@ -14,6 +14,12 @@ import { createTestApp } from "./utils/create-test-app";
  * `GET /users` and reflected in a fresh login's role); `OWNER` is never accepted
  * as a target role (400); a missing user id is a 404; and the bootstrap Owner's
  * own role cannot be changed. No response ever leaks the password hash.
+ *
+ * `GET /users/lookup` is the deliberate exception to the Owner-only rule
+ * (ADR-0011): it is librarian+, because issuing a Loan names the borrower by
+ * email. Its tests prove it stays a bare `{ exists }` boolean — no id, no role,
+ * no registration date — that it is still closed to a MEMBER, and that it
+ * always answers 200, including when the answer is `false`.
  */
 describe("Owner user & role management API (e2e)", () => {
   let app: INestApplication;
@@ -198,6 +204,71 @@ describe("Owner user & role management API (e2e)", () => {
         .set(authHeader(ownerToken));
       const owner = (list.body as ApiUser[]).find((u) => u.id === ownerId)!;
       expect(owner.role).toBe(Role.OWNER);
+    });
+  });
+
+  describe("GET /users/lookup (member existence, librarian+)", () => {
+    const lookup = (email: string, token: string) =>
+      request(app.getHttpServer())
+        .get("/users/lookup")
+        .query({ email })
+        .set(authHeader(token));
+
+    it("401s without a token", async () => {
+      const res = await request(app.getHttpServer())
+        .get("/users/lookup")
+        .query({ email: "member@example.com" });
+      expect(res.status).toBe(401);
+    });
+
+    it("403s a MEMBER — the lookup is librarian+, not any authenticated user", async () => {
+      const res = await lookup("member@example.com", memberToken);
+      expect(res.status).toBe(403);
+    });
+
+    it("tells a LIBRARIAN a registered email exists", async () => {
+      const res = await lookup("member@example.com", librarianToken);
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ exists: true });
+    });
+
+    it("answers 200 with exists:false for an unregistered email, not 404", async () => {
+      const res = await lookup("nobody@example.com", librarianToken);
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ exists: false });
+    });
+
+    it("discloses nothing beyond the boolean", async () => {
+      const res = await lookup("owner@example.com", librarianToken);
+      expect(res.status).toBe(200);
+      // Not the id, not the role, not createdAt — just whether they exist.
+      expect(Object.keys(res.body as object)).toEqual(["exists"]);
+    });
+
+    it("matches case-insensitively and ignores surrounding whitespace", async () => {
+      const upper = await lookup("MeMbEr@ExAmPlE.CoM", librarianToken);
+      expect(upper.body).toEqual({ exists: true });
+
+      const padded = await lookup("  member@example.com  ", librarianToken);
+      expect(padded.body).toEqual({ exists: true });
+    });
+
+    it("400s a malformed email — not an email is a different answer from not registered", async () => {
+      const res = await lookup("not-an-email", librarianToken);
+      expect(res.status).toBe(400);
+    });
+
+    it("400s a missing email query param", async () => {
+      const res = await request(app.getHttpServer())
+        .get("/users/lookup")
+        .set(authHeader(librarianToken));
+      expect(res.status).toBe(400);
+    });
+
+    it("is also open to the OWNER (librarian+ includes OWNER)", async () => {
+      const res = await lookup("librarian@example.com", ownerToken);
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ exists: true });
     });
   });
 });

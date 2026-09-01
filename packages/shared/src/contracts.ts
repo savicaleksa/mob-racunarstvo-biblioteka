@@ -228,16 +228,20 @@ export interface LoanMember {
 
 /**
  * Body of `POST /loans` [librarian+] (Lending, issue 06). Issues a Loan of a
- * Book to a Member. `bookId` and `memberId` must reference an existing Book and
- * an existing user (validated in the service — a clean domain error, never a raw
- * 500). `dueDate` is optional: when omitted the Loan's Due Date defaults to the
- * borrow date plus 14 days; when present (an ISO-8601 date-time) it overrides
- * that default. Issuing is rejected when the Book has no Availability
+ * Book to a Member. `bookId` must reference an existing Book, and `memberEmail`
+ * an existing user's email — both validated in the service (a clean domain
+ * error, never a raw 500). The borrower is identified by email rather than by id
+ * because a Librarian has no route that lists users; they can confirm an email
+ * up-front with `GET /users/lookup` (ADR-0011). Emails are matched
+ * case-insensitively after being trimmed and lowercased. `dueDate` is optional:
+ * when omitted the Loan's Due Date defaults to the borrow date plus 14 days;
+ * when present (an ISO-8601 date-time) it overrides that default. Issuing is
+ * rejected when the Book has no Availability
  * (`count(active loans) === totalCopies`, ADR-0007).
  */
 export interface IssueLoanRequest {
   bookId: number;
-  memberId: number;
+  memberEmail: string;
   /** ISO-8601 Due Date override; defaults to borrow date + 14 days when omitted. */
   dueDate?: string;
 }
@@ -324,3 +328,25 @@ export interface UpdateUserRoleRequest {
  * will carry the new role in its JWT.
  */
 export type UpdateUserRoleResponse = ApiUser;
+
+/**
+ * Query of `GET /users/lookup` [librarian+] (ADR-0011). `email` is the address
+ * the Librarian typed into the Issue Loan form; it is trimmed and lowercased
+ * before the match, so the lookup is case-insensitive.
+ */
+export interface MemberLookupQuery {
+  email: string;
+}
+
+/**
+ * Response of `GET /users/lookup` [librarian+] (ADR-0011): whether an account
+ * with that email is registered, and nothing else — no id, no role, no
+ * registration date. Deliberately **always 200**, including when the answer is
+ * `false`: "this email is not registered" is a successful answer to a valid
+ * question, so the mobile client can tell it apart from a check that failed to
+ * run (network down, token expired), which must not be rendered as "no such
+ * member".
+ */
+export interface MemberLookupResponse {
+  exists: boolean;
+}

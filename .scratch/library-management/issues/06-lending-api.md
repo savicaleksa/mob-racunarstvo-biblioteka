@@ -12,3 +12,19 @@
 - [ ] `GET /loans/me` [auth/member] returns the caller's own Active + historical Loans, each with Book and Author, Overdue distinguished for Active ones.
 - [ ] Loan request/response DTOs live in `packages/shared`.
 - [ ] e2e: Issue decrements Availability as observed via `GET /books`; Issue is rejected at `activeLoans === totalCopies`; Return restores Availability and moves the Loan to history; `GET /loans/active` returns Book/Author/Member/Due Date together and only for Active Loans; `GET /loans/me` shows Active vs returned correctly.
+
+## Comments
+
+**Amended — Issue names the member by email, not by id (ADR-0011).**
+
+`POST /loans` now takes `{ bookId, memberEmail, dueDate? }`; the `memberId` field
+above is gone from the wire. The `loans.member_id` foreign key is unchanged — the
+API resolves the email to a `users.id` and stores the id as before.
+
+The numeric id was unusable in practice: `GET /users` is Owner-only, so a
+Librarian had no route that could tell them the number this endpoint was asking
+for. An unregistered email is a clean 400, as an unknown `memberId` was.
+Confirming an address before Issue is `GET /users/lookup` (see ticket 07).
+
+Any registered user may borrow, whatever their role — no `role = MEMBER` filter.
+That was always true of the code; `CONTEXT.md` now says so too.

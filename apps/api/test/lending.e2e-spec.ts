@@ -14,8 +14,8 @@ import { createTestApp } from "./utils/create-test-app";
  * Lending API (issue 06), exercised end to end at the HTTP seam against a fresh
  * ephemeral SQLite DB. Proves: Issue is Librarian-or-Owner only (a MEMBER is
  * 403'd) and decrements Availability as observed via `GET /books`; Issue is
- * rejected when `count(active loans) === totalCopies`; bad bookId/memberId are
- * clean domain errors, not raw 500s; Return restores Availability and moves the
+ * rejected when `count(active loans) === totalCopies`; an unknown bookId or
+ * memberEmail is a clean domain error, not a raw 500; Return restores Availability and moves the
  * Loan into history (idempotency guarded); `GET /loans/active` returns the
  * showcase JOIN (Book + Author + Member + Due Date) only for Active Loans, with
  * Overdue flagged; and `GET /loans/me` shows Active vs returned scoped strictly
@@ -33,19 +33,23 @@ describe("Lending API (e2e)", () => {
 
   const authHeader = (token: string) => ({ Authorization: `Bearer ${token}` });
 
+  const MEMBER_EMAIL = "member@example.com";
+  const OTHER_MEMBER_EMAIL = "other@example.com";
+  const LIBRARIAN_EMAIL = "librarian@example.com";
+
   beforeEach(async () => {
     app = await createTestApp();
     seedTestCatalog(app);
     // First registrant is the OWNER; the rest are MEMBERs.
     const owner = await register(app, "owner@example.com");
     ownerToken = owner.token;
-    const member = await register(app, "member@example.com");
+    const member = await register(app, MEMBER_EMAIL);
     memberToken = member.token;
     memberId = member.user.id;
-    const other = await register(app, "other@example.com");
+    const other = await register(app, OTHER_MEMBER_EMAIL);
     otherMemberToken = other.token;
     otherMemberId = other.user.id;
-    const librarian = await registerLibrarian(app, "librarian@example.com");
+    const librarian = await registerLibrarian(app, LIBRARIAN_EMAIL);
     librarianToken = librarian.token;
 
     const authors = await request(app.getHttpServer())
@@ -81,7 +85,7 @@ describe("Lending API (e2e)", () => {
       const book = await makeBook();
       const res = await request(app.getHttpServer())
         .post("/loans")
-        .send({ bookId: book.id, memberId });
+        .send({ bookId: book.id, memberEmail: MEMBER_EMAIL });
       expect(res.status).toBe(401);
     });
 
@@ -90,7 +94,7 @@ describe("Lending API (e2e)", () => {
       const res = await request(app.getHttpServer())
         .post("/loans")
         .set(authHeader(memberToken))
-        .send({ bookId: book.id, memberId });
+        .send({ bookId: book.id, memberEmail: MEMBER_EMAIL });
       expect(res.status).toBe(403);
     });
 
@@ -124,7 +128,7 @@ describe("Lending API (e2e)", () => {
       const res = await request(app.getHttpServer())
         .post("/loans")
         .set(authHeader(librarianToken))
-        .send({ bookId: book.id, memberId });
+        .send({ bookId: book.id, memberEmail: MEMBER_EMAIL });
 
       expect(res.status).toBe(201);
       const row = res.body as ActiveLoanRow;
@@ -141,7 +145,7 @@ describe("Lending API (e2e)", () => {
       const res = await request(app.getHttpServer())
         .post("/loans")
         .set(authHeader(librarianToken))
-        .send({ bookId: book.id, memberId });
+        .send({ bookId: book.id, memberEmail: MEMBER_EMAIL });
 
       expect(res.status).toBe(201);
       const row = res.body as ActiveLoanRow;
@@ -158,7 +162,7 @@ describe("Lending API (e2e)", () => {
       const res = await request(app.getHttpServer())
         .post("/loans")
         .set(authHeader(librarianToken))
-        .send({ bookId: book.id, memberId, dueDate: override });
+        .send({ bookId: book.id, memberEmail: MEMBER_EMAIL, dueDate: override });
 
       expect(res.status).toBe(201);
       expect(new Date((res.body as ActiveLoanRow).dueDate).toISOString()).toBe(
@@ -171,7 +175,7 @@ describe("Lending API (e2e)", () => {
       const res = await request(app.getHttpServer())
         .post("/loans")
         .set(authHeader(ownerToken))
-        .send({ bookId: book.id, memberId });
+        .send({ bookId: book.id, memberEmail: MEMBER_EMAIL });
       expect(res.status).toBe(201);
     });
 
@@ -180,14 +184,14 @@ describe("Lending API (e2e)", () => {
       const first = await request(app.getHttpServer())
         .post("/loans")
         .set(authHeader(librarianToken))
-        .send({ bookId: book.id, memberId });
+        .send({ bookId: book.id, memberEmail: MEMBER_EMAIL });
       expect(first.status).toBe(201);
       expect(await availabilityOf(book.id)).toBe(0);
 
       const second = await request(app.getHttpServer())
         .post("/loans")
         .set(authHeader(librarianToken))
-        .send({ bookId: book.id, memberId: otherMemberId });
+        .send({ bookId: book.id, memberEmail: OTHER_MEMBER_EMAIL });
       expect(second.status).toBe(409);
       expect(typeof second.body.message).toBe("string");
       // Availability unchanged — the rejected Issue created no Loan.
@@ -199,7 +203,7 @@ describe("Lending API (e2e)", () => {
       const first = await request(app.getHttpServer())
         .post("/loans")
         .set(authHeader(librarianToken))
-        .send({ bookId: book.id, memberId });
+        .send({ bookId: book.id, memberEmail: MEMBER_EMAIL });
       const loanId = (first.body as ActiveLoanRow).id;
 
       await request(app.getHttpServer())
@@ -209,7 +213,7 @@ describe("Lending API (e2e)", () => {
       const again = await request(app.getHttpServer())
         .post("/loans")
         .set(authHeader(librarianToken))
-        .send({ bookId: book.id, memberId: otherMemberId });
+        .send({ bookId: book.id, memberEmail: OTHER_MEMBER_EMAIL });
       expect(again.status).toBe(201);
     });
 
@@ -217,27 +221,75 @@ describe("Lending API (e2e)", () => {
       const res = await request(app.getHttpServer())
         .post("/loans")
         .set(authHeader(librarianToken))
-        .send({ bookId: 999999, memberId });
+        .send({ bookId: 999999, memberEmail: MEMBER_EMAIL });
       expect([400, 404]).toContain(res.status);
       expect(typeof res.body.message).toBe("string");
     });
 
-    it("gives a clean domain error (not a 500) for a missing memberId", async () => {
+    it("gives a clean domain error (not a 500) for an unregistered memberEmail", async () => {
       const book = await makeBook();
       const res = await request(app.getHttpServer())
         .post("/loans")
         .set(authHeader(librarianToken))
-        .send({ bookId: book.id, memberId: 999999 });
+        .send({ bookId: book.id, memberEmail: "nobody@example.com" });
       expect([400, 404]).toContain(res.status);
       expect(typeof res.body.message).toBe("string");
     });
 
-    it("400s a missing bookId/memberId in the body", async () => {
+    it("400s a missing bookId/memberEmail in the body", async () => {
       const res = await request(app.getHttpServer())
         .post("/loans")
         .set(authHeader(librarianToken))
         .send({ bookId: 1 });
       expect(res.status).toBe(400);
+    });
+
+    it("400s a memberEmail that is not an email at all", async () => {
+      const book = await makeBook();
+      const res = await request(app.getHttpServer())
+        .post("/loans")
+        .set(authHeader(librarianToken))
+        .send({ bookId: book.id, memberEmail: "not-an-email" });
+      expect(res.status).toBe(400);
+    });
+
+    it("rejects the old numeric memberId shape rather than silently ignoring it", async () => {
+      const book = await makeBook();
+      const res = await request(app.getHttpServer())
+        .post("/loans")
+        .set(authHeader(librarianToken))
+        .send({ bookId: book.id, memberId });
+      expect(res.status).toBe(400);
+    });
+
+    it("matches memberEmail case-insensitively", async () => {
+      const book = await makeBook();
+      const res = await request(app.getHttpServer())
+        .post("/loans")
+        .set(authHeader(librarianToken))
+        .send({ bookId: book.id, memberEmail: "MeMbEr@ExAmPlE.CoM" });
+      expect(res.status).toBe(201);
+      expect((res.body as ActiveLoanRow).member.id).toBe(memberId);
+    });
+
+    it("trims surrounding whitespace from memberEmail", async () => {
+      const book = await makeBook();
+      const res = await request(app.getHttpServer())
+        .post("/loans")
+        .set(authHeader(librarianToken))
+        .send({ bookId: book.id, memberEmail: `  ${MEMBER_EMAIL}  ` });
+      expect(res.status).toBe(201);
+      expect((res.body as ActiveLoanRow).member.id).toBe(memberId);
+    });
+
+    it("lets a Librarian borrow too — any registered user may hold a Loan", async () => {
+      const book = await makeBook();
+      const res = await request(app.getHttpServer())
+        .post("/loans")
+        .set(authHeader(librarianToken))
+        .send({ bookId: book.id, memberEmail: LIBRARIAN_EMAIL });
+      expect(res.status).toBe(201);
+      expect((res.body as ActiveLoanRow).member.email).toBe(LIBRARIAN_EMAIL);
     });
   });
 
@@ -247,7 +299,7 @@ describe("Lending API (e2e)", () => {
       const issued = await request(app.getHttpServer())
         .post("/loans")
         .set(authHeader(librarianToken))
-        .send({ bookId: book.id, memberId });
+        .send({ bookId: book.id, memberEmail: MEMBER_EMAIL });
       const loanId = (issued.body as ActiveLoanRow).id;
       expect(await availabilityOf(book.id)).toBe(0);
 
@@ -283,7 +335,7 @@ describe("Lending API (e2e)", () => {
       const issued = await request(app.getHttpServer())
         .post("/loans")
         .set(authHeader(librarianToken))
-        .send({ bookId: book.id, memberId });
+        .send({ bookId: book.id, memberEmail: MEMBER_EMAIL });
       const loanId = (issued.body as ActiveLoanRow).id;
 
       const first = await request(app.getHttpServer())
@@ -313,7 +365,7 @@ describe("Lending API (e2e)", () => {
       const onTime = await request(app.getHttpServer())
         .post("/loans")
         .set(authHeader(librarianToken))
-        .send({ bookId: book.id, memberId });
+        .send({ bookId: book.id, memberEmail: MEMBER_EMAIL });
       const onTimeId = (onTime.body as ActiveLoanRow).id;
 
       // An overdue Active Loan (past due date, overridden).
@@ -322,7 +374,7 @@ describe("Lending API (e2e)", () => {
         .set(authHeader(librarianToken))
         .send({
           bookId: book.id,
-          memberId: otherMemberId,
+          memberEmail: OTHER_MEMBER_EMAIL,
           dueDate: "2000-01-01T00:00:00.000Z",
         });
       const overdueId = (overdue.body as ActiveLoanRow).id;
@@ -331,7 +383,7 @@ describe("Lending API (e2e)", () => {
       const returned = await request(app.getHttpServer())
         .post("/loans")
         .set(authHeader(librarianToken))
-        .send({ bookId: book.id, memberId });
+        .send({ bookId: book.id, memberEmail: MEMBER_EMAIL });
       const returnedId = (returned.body as ActiveLoanRow).id;
       await request(app.getHttpServer())
         .patch(`/loans/${returnedId}/return`)
@@ -351,7 +403,7 @@ describe("Lending API (e2e)", () => {
       const onTimeRow = rows.find((r) => r.id === onTimeId)!;
       expect(onTimeRow.book).toMatchObject({ id: book.id, title: "The Joined Book" });
       expect(onTimeRow.book.author).toMatchObject({ id: authorId, name: expect.any(String) });
-      expect(onTimeRow.member).toMatchObject({ id: memberId, email: "member@example.com" });
+      expect(onTimeRow.member).toMatchObject({ id: memberId, email: MEMBER_EMAIL });
       expect(typeof onTimeRow.dueDate).toBe("string");
       expect(onTimeRow.overdue).toBe(false);
 
@@ -369,21 +421,21 @@ describe("Lending API (e2e)", () => {
       const active = await request(app.getHttpServer())
         .post("/loans")
         .set(authHeader(librarianToken))
-        .send({ bookId: book.id, memberId });
+        .send({ bookId: book.id, memberEmail: MEMBER_EMAIL });
       const activeId = (active.body as ActiveLoanRow).id;
 
       // Active overdue.
       const overdue = await request(app.getHttpServer())
         .post("/loans")
         .set(authHeader(librarianToken))
-        .send({ bookId: book.id, memberId, dueDate: "2000-01-01T00:00:00.000Z" });
+        .send({ bookId: book.id, memberEmail: MEMBER_EMAIL, dueDate: "2000-01-01T00:00:00.000Z" });
       const overdueId = (overdue.body as ActiveLoanRow).id;
 
       // Returned (historical).
       const returned = await request(app.getHttpServer())
         .post("/loans")
         .set(authHeader(librarianToken))
-        .send({ bookId: book.id, memberId });
+        .send({ bookId: book.id, memberEmail: MEMBER_EMAIL });
       const returnedId = (returned.body as ActiveLoanRow).id;
       await request(app.getHttpServer())
         .patch(`/loans/${returnedId}/return`)
@@ -415,14 +467,14 @@ describe("Lending API (e2e)", () => {
       const forMember = await request(app.getHttpServer())
         .post("/loans")
         .set(authHeader(librarianToken))
-        .send({ bookId: book.id, memberId });
+        .send({ bookId: book.id, memberEmail: MEMBER_EMAIL });
       const memberLoanId = (forMember.body as ActiveLoanRow).id;
 
       // A Loan belonging to the OTHER member.
       const forOther = await request(app.getHttpServer())
         .post("/loans")
         .set(authHeader(librarianToken))
-        .send({ bookId: book.id, memberId: otherMemberId });
+        .send({ bookId: book.id, memberEmail: OTHER_MEMBER_EMAIL });
       const otherLoanId = (forOther.body as ActiveLoanRow).id;
 
       const mine = await request(app.getHttpServer())

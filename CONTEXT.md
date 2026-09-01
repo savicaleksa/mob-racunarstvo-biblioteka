@@ -7,7 +7,7 @@ A mobile application for running a library: managing the book catalog, tracking 
 ### Roles
 
 **Member**:
-An end user who browses the catalog and views their own current and past loans. The default role for anyone who registers.
+An end user who browses the catalog and views their own current and past loans. The default role for anyone who registers. As a *role* it is distinct from borrowing: holding a Loan does not require it (see Loan).
 _Avoid_: Client, Reader, Patron, User (in domain copy), Član
 
 **Librarian**:
@@ -39,12 +39,16 @@ The number of copies of a Book currently free to borrow, computed as `Total Copi
 
 ### Loans
 
+**Email**:
+A user's address, and the identity everyone else in the library knows them by — a Librarian names a Loan's Member with one. Unique across users and case-insensitive: one address is always one account, however it is typed.
+_Avoid_: Username, Login, Mail
+
 **Loan**:
-A record that a Member has borrowed a Book. Joins a Book and a Member, and carries a borrow date, a due date, and a nullable return date. Retained after return to form loan history.
+A record that a Member has borrowed a Book. Joins a Book and a Member, and carries a borrow date, a due date, and a nullable return date. Retained after return to form loan history. "Member" here names the *borrower*, which is any registered user — a Librarian or the Owner may hold a Loan too; the Member role is not required.
 _Avoid_: Borrowing, Checkout, Rental, Zaduženje
 
 **Issue (a loan)**:
-The Librarian action that creates a Loan for a Member. Rejected when the Book has no Availability (Active Loans ≥ Total Copies).
+The Librarian action that creates a Loan for a Member, who is named by their Email. Rejected when the Book has no Availability (Active Loans ≥ Total Copies), or when the Email belongs to no account.
 _Avoid_: Lend, Check out, Give
 
 **Return**:

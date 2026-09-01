@@ -158,13 +158,26 @@ are demonstrated entirely through the app:
    button on the Owner Users screen. The promoted Librarian account gets those
    screens directly on login.
 
-### Issuing a loan — identify the Member by ID
+### Issuing a loan — identify the borrower by email
 
-There is no librarian-facing user-list route by design. In the Librarian
-**Issue Loan** flow, a Member is identified by their **numeric member ID** —
-the same **ID** shown in the ID column of the Owner Users screen. Note the ID
-there, then enter it when issuing the loan. Overdue Active Loans (past their due
-date) are flagged by the API and highlighted in the UI.
+There is no librarian-facing user-list route by design, so in the Librarian
+**Issue Loan** flow the borrower is identified by their **email** — the address
+they registered with, which at a real counter they would simply tell you.
+
+Type it into **Member email** and tap outside the field: the app checks the
+address against the API and shows a ✓ once it resolves to a registered account.
+**Issue loan** stays disabled until it does, so an unregistered or mistyped email
+cannot be submitted. Editing the field clears the ✓ — leave the field again to
+re-check — so the email that gets submitted is always the one that was verified.
+Emails are matched case-insensitively and surrounding whitespace is ignored, so
+casing does not have to match how the member registered.
+
+Any registered account can borrow, including a Librarian or the Owner. Overdue
+Active Loans (past their due date) are flagged by the API and highlighted in the
+UI.
+
+See [ADR-0011](docs/adr/0011-librarian-email-lookup.md) for why the check
+discloses only whether the email exists, and nothing else about the user.
 
 ## Repo-wide scripts
 

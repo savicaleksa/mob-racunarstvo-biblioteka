@@ -1,4 +1,4 @@
-import type { ApiBook, IssueLoanRequest } from "@repo/shared";
+import { canonicalEmail, type ApiBook, type IssueLoanRequest } from "@repo/shared";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
@@ -19,6 +19,7 @@ import {
 import { useBooks } from "../../../../src/api/books";
 import { getErrorMessage } from "../../../../src/api/errors";
 import { useIssueLoan } from "../../../../src/api/loans";
+import { useMemberLookup } from "../../../../src/api/users";
 
 /** A due date 14 days out (the API default), as `YYYY-MM-DD` for the input. */
 function defaultDueDate(): string {
@@ -27,13 +28,35 @@ function defaultDueDate(): string {
 }
 
 /**
+ * Client-side shape check only — enough to avoid spending a lookup request on
+ * something that cannot be an address. The API's `@IsEmail()` is the real rule,
+ * and this is deliberately the *looser* of the two: anything it lets through
+ * that the server rejects comes back as a plain 400 the field renders, so no
+ * address the API would accept can ever be blocked here.
+ */
+const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
  * Issue Loan form (ticket 10, user stories 32–35). The Librarian picks a Book
- * from the Catalog and identifies the Member. There is no librarian-accessible
- * route to list users (`GET /users` is Owner-only), so the Member is identified
- * by their numeric id in a plain input rather than a dropdown — an invalid id
- * comes back as the API's clear 400 message. The Due Date is prefilled 14 days
- * out (the API default) and can be overridden or cleared (blank → API default).
- * Issuing a Book with no Availability is rejected with the API's 409 message.
+ * from the Catalog and identifies the Member by **email** (ADR-0011).
+ *
+ * Email rather than a numeric id because a Librarian has no route that lists
+ * users (`GET /users` is Owner-only), so an id is a number they have no way to
+ * find — while an email is one the member can simply tell them. The trade-off is
+ * that a typo now points at nobody rather than at the wrong person, so the form
+ * confirms the address before it will submit: leaving the field triggers
+ * `GET /users/lookup`, and Issue stays disabled until that comes back `true`.
+ *
+ * Three outcomes are kept visually distinct, because conflating them would lie
+ * to the Librarian: *not registered* (the answer is no), *could not check* (the
+ * request itself failed — the email may well be fine), and *confirmed*. Editing
+ * the field after a confirmation clears it, so the email submitted is always the
+ * exact one that was checked. The server re-validates regardless; this check is
+ * a convenience, never the enforcement.
+ *
+ * The Due Date is prefilled 14 days out (the API default) and can be overridden
+ * or cleared (blank → API default). Issuing a Book with no Availability is
+ * rejected with the API's 409 message.
  */
 export default function IssueLoanScreen() {
   const router = useRouter();
@@ -41,36 +64,71 @@ export default function IssueLoanScreen() {
   const booksQuery = useBooks({});
 
   const [bookId, setBookId] = useState<number | null>(null);
-  const [memberId, setMemberId] = useState("");
+  const [memberEmail, setMemberEmail] = useState("");
+  // The email the lookup was last asked about — null until the field is left,
+  // and cleared on every edit so a stale ✓ can never outlive a change.
+  const [checkedEmail, setCheckedEmail] = useState<string | null>(null);
   const [dueDate, setDueDate] = useState(defaultDueDate());
   const [bookMenuOpen, setBookMenuOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const memberLookup = useMemberLookup(checkedEmail);
+
   const selectedBook =
     booksQuery.data?.find((book) => book.id === bookId) ?? null;
 
-  const trimmedMember = memberId.trim();
-  const memberInvalid =
-    trimmedMember.length > 0 && !/^\d+$/.test(trimmedMember);
+  const normalizedEmail = canonicalEmail(memberEmail);
+  const emailMalformed =
+    normalizedEmail.length > 0 && !EMAIL_SHAPE.test(normalizedEmail);
+  // Only a settled lookup for the *current* value counts as a confirmation.
+  // `isFetching` matters as much as the value: TanStack keeps the previous
+  // `data` while a refetch is in flight, so without it a re-check would show
+  // "Checking…" and a ✓ and an enabled button at the same time, and could
+  // submit on the stale answer.
+  const memberConfirmed =
+    checkedEmail !== null &&
+    checkedEmail === normalizedEmail &&
+    !memberLookup.isFetching &&
+    memberLookup.data?.exists === true;
+
   const trimmedDue = dueDate.trim();
   const dueInvalid =
     trimmedDue.length > 0 && !/^\d{4}-\d{2}-\d{2}$/.test(trimmedDue);
 
   const canSubmit =
-    bookId !== null &&
-    /^\d+$/.test(trimmedMember) &&
-    !dueInvalid &&
-    !issueLoan.isPending;
+    bookId !== null && memberConfirmed && !dueInvalid && !issueLoan.isPending;
+
+  function handleEmailChange(text: string) {
+    setMemberEmail(text);
+    setCheckedEmail(null);
+  }
+
+  /** Check the address once the Librarian has finished typing it. */
+  function handleEmailBlur() {
+    const candidate = canonicalEmail(memberEmail);
+    if (!EMAIL_SHAPE.test(candidate)) {
+      setCheckedEmail(null);
+      return;
+    }
+    if (candidate === checkedEmail) {
+      // Same address as last time, so setting state would be a no-op and the
+      // query would never re-run. A check that *failed* must still be
+      // retryable without forcing the Librarian to edit a correct email, so
+      // ask the query directly.
+      if (memberLookup.isError) {
+        void memberLookup.refetch();
+      }
+      return;
+    }
+    setCheckedEmail(candidate);
+  }
 
   function handleSubmit() {
     setError(null);
-    if (bookId === null || !/^\d+$/.test(trimmedMember)) {
+    if (bookId === null || !memberConfirmed || checkedEmail === null) {
       return;
     }
-    const body: IssueLoanRequest = {
-      bookId,
-      memberId: Number(trimmedMember),
-    };
+    const body: IssueLoanRequest = { bookId, memberEmail: checkedEmail };
     if (trimmedDue.length > 0) {
       body.dueDate = trimmedDue;
     }
@@ -80,6 +138,43 @@ export default function IssueLoanScreen() {
         setError(getErrorMessage(err, "Could not issue the loan")),
     });
   }
+
+  /**
+   * Helper text under the email field. Ordered most-specific first, and it never
+   * reports "not registered" for a check that merely failed to run.
+   */
+  function memberHelper(): { type: "error" | "info"; text: string } {
+    if (emailMalformed) {
+      return { type: "error", text: "Enter a valid email address." };
+    }
+    if (checkedEmail === null) {
+      return {
+        type: "info",
+        text: "Enter the borrowing member's email, then tap outside to check it.",
+      };
+    }
+    if (memberLookup.isPending || memberLookup.isFetching) {
+      return { type: "info", text: "Checking this email…" };
+    }
+    if (memberLookup.isError) {
+      return {
+        type: "error",
+        text: `${getErrorMessage(
+          memberLookup.error,
+          "Could not check this email.",
+        )} Tap the field and leave it again to retry.`,
+      };
+    }
+    if (memberLookup.data?.exists === false) {
+      return {
+        type: "error",
+        text: "No account is registered with that email.",
+      };
+    }
+    return { type: "info", text: "✓ Registered — this member can borrow." };
+  }
+
+  const helper = memberHelper();
 
   return (
     <KeyboardAvoidingView
@@ -140,16 +235,22 @@ export default function IssueLoanScreen() {
         </View>
 
         <TextInput
-          label="Member ID"
-          value={memberId}
-          onChangeText={setMemberId}
+          label="Member email"
+          value={memberEmail}
+          onChangeText={handleEmailChange}
+          onBlur={handleEmailBlur}
           mode="outlined"
-          keyboardType="number-pad"
+          autoCapitalize="none"
+          autoCorrect={false}
+          keyboardType="email-address"
+          textContentType="emailAddress"
+          placeholder="member@example.com"
+          right={
+            memberConfirmed ? <TextInput.Icon icon="check-circle" /> : undefined
+          }
         />
-        <HelperText type={memberInvalid ? "error" : "info"} visible>
-          {memberInvalid
-            ? "Member ID must be a number."
-            : "Enter the borrowing Member's numeric id."}
+        <HelperText type={helper.type} visible>
+          {helper.text}
         </HelperText>
 
         <TextInput

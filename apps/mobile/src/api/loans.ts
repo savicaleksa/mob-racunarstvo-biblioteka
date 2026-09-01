@@ -38,7 +38,7 @@ export const loansApi = {
 
   /**
    * `POST /loans` [librarian+] — Issue a Loan. `dueDate` is optional (defaults to
-   * borrow date + 14 days). 400 on an invalid bookId/memberId; 409 when the Book
+   * borrow date + 14 days). 400 on an unknown bookId/memberEmail; 409 when the Book
    * has no Availability.
    */
   async issue(body: IssueLoanRequest): Promise<IssueLoanResponse> {

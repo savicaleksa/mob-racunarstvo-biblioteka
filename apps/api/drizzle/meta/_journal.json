@@ -8,6 +8,13 @@
       "when": 1784844143633,
       "tag": "0000_cold_obadiah_stane",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1788297113590,
+      "tag": "0001_talented_avengers",
+      "breakpoints": true
     }
   ]
 }

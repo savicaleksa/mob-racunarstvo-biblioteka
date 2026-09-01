@@ -67,8 +67,14 @@ export class AuthService {
 
   /**
    * Verify an email + password pair and issue a token. Unknown email and wrong
-   * password both yield the same 401 so the response cannot be used to probe
+   * password both yield the same 401 so *this* route cannot be used to probe
    * which emails are registered.
+   *
+   * That is no longer the whole story for the API: `GET /users/lookup` answers
+   * exactly that question, deliberately, for a Librarian or the Owner
+   * (ADR-0011). The distinction is the audience — login is unauthenticated and
+   * open to the world, the lookup requires a privileged token. Keep this route
+   * uniform regardless.
    */
   async login(dto: LoginDto): Promise<AuthResponse> {
     const user = this.db

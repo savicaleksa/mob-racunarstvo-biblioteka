@@ -17,6 +17,7 @@ import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 import type { DrizzleDatabase } from "../db/connection";
 import { DRIZZLE } from "../db/drizzle.module";
 import { authors, books, loans, users } from "../db/schema";
+import { UsersService } from "../users/users.service";
 
 /** Default loan period: a Loan's Due Date is the borrow date + 14 days. */
 const DEFAULT_LOAN_DAYS = 14;
@@ -45,15 +46,29 @@ const authorColumns = {
  */
 @Injectable()
 export class LoansService {
-  constructor(@Inject(DRIZZLE) private readonly db: DrizzleDatabase) {}
+  constructor(
+    @Inject(DRIZZLE) private readonly db: DrizzleDatabase,
+    private readonly usersService: UsersService,
+  ) {}
 
   /**
-   * Issue a Loan of a Book to a Member (librarian+). `bookId` and `memberId` are
-   * validated to reference an existing Book and user first, so a bad reference is
-   * a clean 400 rather than a raw foreign-key 500. Issuing is rejected with a 409
-   * when the Book has no Availability (`count(active loans) === totalCopies`,
-   * ADR-0007). The Due Date defaults to the borrow date + 14 days and may be
-   * overridden via `dueDate`. Returns the freshly issued (Active) Loan.
+   * Issue a Loan of a Book to a Member (librarian+). `bookId` and `memberEmail`
+   * are validated to reference an existing Book and user first, so a bad
+   * reference is a clean 400 rather than a raw foreign-key 500. Issuing is
+   * rejected with a 409 when the Book has no Availability
+   * (`count(active loans) === totalCopies`, ADR-0007). The Due Date defaults to
+   * the borrow date + 14 days and may be overridden via `dueDate`. Returns the
+   * freshly issued (Active) Loan.
+   *
+   * The borrower is named by email and resolved to the `users.id` the `loans`
+   * foreign key actually stores (ADR-0011) — the Loan still points at a user
+   * record, not at a string, so it survives an email ever changing. Any
+   * registered user may borrow, whatever their role: a Librarian reads books
+   * too, and `GET /loans/me` has always been open to every authenticated caller.
+   * The email is already trimmed and lowercased by `IssueLoanDto`, and the
+   * borrower is resolved through the very same {@link UsersService.findIdByEmail}
+   * that backs `GET /users/lookup` — so an email the Librarian just saw
+   * confirmed cannot then fail here.
    */
   issue(input: IssueLoanRequest): IssueLoanResponse {
     const book = this.db
@@ -66,14 +81,12 @@ export class LoansService {
       throw new BadRequestException(`Book ${input.bookId} does not exist`);
     }
 
-    const member = this.db
-      .select({ id: users.id })
-      .from(users)
-      .where(eq(users.id, input.memberId))
-      .get();
+    const memberId = this.usersService.findIdByEmail(input.memberEmail);
 
-    if (!member) {
-      throw new BadRequestException(`Member ${input.memberId} does not exist`);
+    if (memberId === undefined) {
+      throw new BadRequestException(
+        `No account is registered with the email ${input.memberEmail}`,
+      );
     }
 
     const activeCount = this.activeLoanCount(input.bookId);
@@ -92,7 +105,7 @@ export class LoansService {
       .insert(loans)
       .values({
         bookId: input.bookId,
-        memberId: input.memberId,
+        memberId,
         borrowedAt,
         dueDate,
         returnedAt: null,

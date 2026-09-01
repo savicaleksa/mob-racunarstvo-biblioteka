@@ -11,3 +11,16 @@
 - [ ] Issue Loan screen: pick a Book and a Member; Due Date defaults to 14 days and can be overridden; Issuing a Book with no Availability is rejected with a clear message.
 - [ ] Active Loans screen: every Active Loan showing Book, Author, Member, and Due Date, with Overdue surfaced; record a Return from here.
 - [ ] Verified manually as a Librarian through the demo flow.
+
+## Comments
+
+**Amended — the Issue Loan screen identifies the member by email (ADR-0011).**
+
+"pick a Book and a Member" above is now: pick a Book, and type the member's
+**email**. There is no librarian-accessible user list to pick from, so the screen
+checks the address instead — on blur it calls `GET /users/lookup`, and **Issue
+loan** stays disabled until that confirms the email is registered. Editing the
+field clears the confirmation, so the email submitted is always the one checked.
+
+Three states are kept distinct on purpose: *not registered*, *could not check*
+(the request failed — the email may be fine), and *confirmed*.

@@ -103,10 +103,10 @@ Availability is always truthful because it is derived from Active Loans rather t
 - Referential integrity: foreign keys are `RESTRICT` on delete (ADR-0008). Delete attempts on referenced Authors/Books return a 409-style domain error surfaced to the client, not a cascade.
 
 ### Schema
-- `users`: id, email (unique), passwordHash, role (`OWNER | LIBRARIAN | MEMBER`), createdAt.
+- `users`: id, email (unique under `COLLATE NOCASE`; trimmed + lowercased on every write, ADR-0011), passwordHash, role (`OWNER | LIBRARIAN | MEMBER`), createdAt.
 - `authors`: id, name, bio (nullable), birthYear (nullable).
 - `books`: id, title, authorId (FK → authors, RESTRICT), totalCopies (default 1), isbn (nullable), publishedYear (nullable), description (nullable).
-- `loans`: id, bookId (FK → books, RESTRICT), memberId (FK → users, RESTRICT), borrowedAt, dueDate, returnedAt (nullable).
+- `loans`: id, bookId (FK → books, RESTRICT), memberId (FK → users, RESTRICT — resolved from the member's email at Issue, ADR-0011), borrowedAt, dueDate, returnedAt (nullable).
 - Invariants: **Active Loan** = `returnedAt IS NULL`; **Overdue** = Active AND `dueDate < now`.
 
 ### Availability (ADR-0007)
@@ -128,13 +128,14 @@ Availability is always truthful because it is derived from Active Loans rather t
 - `POST /auth/login` [public] → `{ token, user }`
 - `GET /auth/me` [auth] → `{ user }`
 - `GET /users` [owner] → users list
+- `GET /users/lookup?email=` [librarian+] → `{ exists }` — whether an email is registered, and nothing more; always 200 (ADR-0011)
 - `PATCH /users/:id/role` [owner] → updated user; body `{ role: LIBRARIAN | MEMBER }`
 - `GET /authors` [auth] (supports tokenized `search`) · `GET /authors/:id` [auth]
 - `POST /authors` · `PATCH /authors/:id` · `DELETE /authors/:id` [librarian+]
 - `GET /books` [auth] (supports `search` and an `available` filter, availability computed) · `GET /books/:id` [auth]
 - `POST /books` · `PATCH /books/:id` · `DELETE /books/:id` [librarian+]
 - `GET /loans/active` [librarian+] → the showcase JOIN: each row carries Book, Author, Member, Due Date; Overdue flagged
-- `POST /loans` [librarian+] → Issue; body `{ bookId, memberId, dueDate? }`; rejects when no Availability
+- `POST /loans` [librarian+] → Issue; body `{ bookId, memberEmail, dueDate? }`; rejects when no Availability, or when no account has that email (ADR-0011)
 - `PATCH /loans/:id/return` [librarian+] → sets returnedAt
 - `GET /loans/me` [member/auth] → own Active + historical Loans, each with Book and Author
 

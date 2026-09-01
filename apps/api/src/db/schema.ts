@@ -1,5 +1,10 @@
 import { sql } from "drizzle-orm";
-import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import {
+  integer,
+  sqliteTable,
+  text,
+  uniqueIndex,
+} from "drizzle-orm/sqlite-core";
 
 /**
  * Relational schema (see spec.md "### Schema" and ADR-0008).
@@ -13,18 +18,31 @@ import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
  * Availability is NOT stored (ADR-0007): it is derived on read as
  * `totalCopies - count(active loans)`, so there is deliberately no
  * `availableCopies` column on `books`.
+ *
+ * `users.email` is unique under `COLLATE NOCASE`, not SQLite's default BINARY
+ * collation, so `Ana@x.com` and `ana@x.com` cannot both be registered. Every DTO
+ * that accepts an email also trims and lowercases it (`NormalizeEmail`), so the
+ * column only ever holds lowercase; the NOCASE index is the backstop that keeps
+ * that invariant true even if a future write path forgets. Both matter for
+ * lending: a Loan names its borrower by email (ADR-0011).
  */
 
-export const users = sqliteTable("users", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  email: text("email").notNull().unique(),
-  passwordHash: text("password_hash").notNull(),
-  // Stored as the string literals of the Role union: OWNER | LIBRARIAN | MEMBER.
-  role: text("role").notNull(),
-  createdAt: integer("created_at", { mode: "timestamp" })
-    .notNull()
-    .default(sql`(unixepoch())`),
-});
+export const users = sqliteTable(
+  "users",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    email: text("email").notNull(),
+    passwordHash: text("password_hash").notNull(),
+    // Stored as the string literals of the Role union: OWNER | LIBRARIAN | MEMBER.
+    role: text("role").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .notNull()
+      .default(sql`(unixepoch())`),
+  },
+  (table) => [
+    uniqueIndex("users_email_unique").on(sql`${table.email} COLLATE NOCASE`),
+  ],
+);
 
 export const authors = sqliteTable("authors", {
   id: integer("id").primaryKey({ autoIncrement: true }),
