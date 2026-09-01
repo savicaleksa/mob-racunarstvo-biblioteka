@@ -1,13 +1,13 @@
 import { existsSync, rmSync } from "node:fs";
 
 import { createDatabase } from "./connection";
-import { seedCatalog } from "./seed";
+import { seedAll } from "./seed";
 
 /**
- * One-command database setup for graders (issue 12): delete any existing dev
- * database, recreate it purely from the drizzle-kit migrations, and populate the
- * Catalog seed (Authors + Books; deliberately no users, so the first account to
- * register still becomes the Owner via the bootstrap).
+ * One-command database setup for graders: delete any existing dev database,
+ * recreate it purely from the drizzle-kit migrations, and run the seed —
+ * the Catalog (Authors + Books) plus one demo account per role, all sharing the
+ * password documented in the README.
  *
  * Run it with `pnpm --filter @repo/api db:reset`.
  *
@@ -36,9 +36,9 @@ function main(): void {
   // `createDatabase()` applies all pending migrations on connect (ADR-0004), so
   // opening the fresh file reproduces the full schema before we seed.
   const db = createDatabase({ url });
-  const result = seedCatalog(db);
+  const result = seedAll(db);
   console.log(
-    `Database reset from migrations. Seeded Catalog: ${result.authors} authors, ${result.books} books.`,
+    `Database reset from migrations. Seeded ${result.authors} authors, ${result.books} books, ${result.users} users.`,
   );
 }
 

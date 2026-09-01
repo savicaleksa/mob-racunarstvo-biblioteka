@@ -32,7 +32,9 @@ describe("Catalog read API (e2e)", () => {
   });
 
   const authGet = (path: string) =>
-    request(app.getHttpServer()).get(path).set("Authorization", `Bearer ${token}`);
+    request(app.getHttpServer())
+      .get(path)
+      .set("Authorization", `Bearer ${token}`);
 
   describe("auth gating", () => {
     it("401s GET /authors without a token", async () => {
@@ -51,42 +53,42 @@ describe("Catalog read API (e2e)", () => {
       const res = await authGet("/authors");
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
-      expect(res.body.length).toBeGreaterThanOrEqual(4);
+      expect(res.body.length).toBeGreaterThanOrEqual(76);
 
-      const petar = (res.body as ApiAuthor[]).find(
-        (a) => a.name === "Petar Petrovic",
+      const dostoevsky = (res.body as ApiAuthor[]).find(
+        (a) => a.name === "Fyodor Dostoevsky",
       );
-      expect(petar).toBeDefined();
-      expect(petar).toMatchObject({
+      expect(dostoevsky).toBeDefined();
+      expect(dostoevsky).toMatchObject({
         id: expect.any(Number),
-        name: "Petar Petrovic",
-        birthYear: 1965,
+        name: "Fyodor Dostoevsky",
+        birthYear: 1821,
       });
-      expect(typeof petar!.bio).toBe("string");
+      expect(typeof dostoevsky!.bio).toBe("string");
     });
 
     it.each([
-      ["pet petr", "two leading-substring tokens"],
-      ["Petrovic Petar", "reordered full words"],
-      ["eta etro", "mid-word substrings"],
-    ])("tokenized search %j (%s) returns Petar Petrovic", async (query) => {
+      ["fyo dos", "two leading-substring tokens"],
+      ["Dostoevsky Fyodor", "reordered full words"],
+      ["yodo ostoe", "mid-word substrings"],
+    ])("tokenized search %j (%s) returns Fyodor Dostoevsky", async (query) => {
       const res = await authGet(`/authors?search=${encodeURIComponent(query)}`);
       expect(res.status).toBe(200);
       const names = (res.body as ApiAuthor[]).map((a) => a.name);
-      expect(names).toContain("Petar Petrovic");
+      expect(names).toContain("Fyodor Dostoevsky");
     });
 
     it("excludes an Author when one token does not match", async () => {
-      const res = await authGet("/authors?search=petar%20zzz");
+      const res = await authGet("/authors?search=fyodor%20zzz");
       expect(res.status).toBe(200);
       const names = (res.body as ApiAuthor[]).map((a) => a.name);
-      expect(names).not.toContain("Petar Petrovic");
+      expect(names).not.toContain("Fyodor Dostoevsky");
     });
 
     it("empty search returns the unfiltered list", async () => {
       const res = await authGet("/authors?search=");
       expect(res.status).toBe(200);
-      expect(res.body.length).toBeGreaterThanOrEqual(4);
+      expect(res.body.length).toBeGreaterThanOrEqual(76);
     });
   });
 
@@ -110,7 +112,7 @@ describe("Catalog read API (e2e)", () => {
       const res = await authGet("/books");
       expect(res.status).toBe(200);
       const books = res.body as ApiBook[];
-      expect(books.length).toBeGreaterThanOrEqual(4);
+      expect(books.length).toBeGreaterThanOrEqual(100);
 
       const book = books[0]!;
       expect(book.author).toMatchObject({
@@ -122,17 +124,17 @@ describe("Catalog read API (e2e)", () => {
     });
 
     it("tokenized search over title + author name finds the Book", async () => {
-      // "eta etro" matches the Author name embedded in the search target.
-      const res = await authGet("/books?search=eta%20etro");
+      // "yodo ostoe" matches the Author name embedded in the search target.
+      const res = await authGet("/books?search=yodo%20ostoe");
       expect(res.status).toBe(200);
       const titles = (res.body as ApiBook[]).map((b) => b.title);
-      expect(titles).toContain("The Collected Stories");
+      expect(titles).toContain("Crime and Punishment");
     });
 
     it("Availability reflects Active Loans and drops when one is planted", async () => {
       const before = await authGet("/books");
       const target = (before.body as ApiBook[]).find(
-        (b) => b.title === "The Collected Stories",
+        (b) => b.title === "Crime and Punishment",
       )!;
       const startingAvailability = target.availability;
       expect(startingAvailability).toBe(target.totalCopies);
@@ -140,7 +142,9 @@ describe("Catalog read API (e2e)", () => {
       insertLoan(app, target.id, memberId);
 
       const after = await authGet("/books");
-      const updated = (after.body as ApiBook[]).find((b) => b.id === target.id)!;
+      const updated = (after.body as ApiBook[]).find(
+        (b) => b.id === target.id,
+      )!;
       expect(updated.availability).toBe(startingAvailability - 1);
 
       // A returned Loan is not Active and must not consume Availability.
@@ -153,36 +157,36 @@ describe("Catalog read API (e2e)", () => {
     });
 
     it("available=true excludes Books with zero Availability", async () => {
-      // "A Wizard of Earthsea" has totalCopies 1; one Active Loan zeroes it out.
+      // "Pale Fire" is seeded with totalCopies 1; one Active Loan zeroes it out.
       const list = await authGet("/books");
-      const wizard = (list.body as ApiBook[]).find(
-        (b) => b.title === "A Wizard of Earthsea",
+      const paleFire = (list.body as ApiBook[]).find(
+        (b) => b.title === "Pale Fire",
       )!;
-      expect(wizard.totalCopies).toBe(1);
-      insertLoan(app, wizard.id, memberId);
+      expect(paleFire.totalCopies).toBe(1);
+      insertLoan(app, paleFire.id, memberId);
 
       const res = await authGet("/books?available=true");
       expect(res.status).toBe(200);
       const titles = (res.body as ApiBook[]).map((b) => b.title);
-      expect(titles).not.toContain("A Wizard of Earthsea");
+      expect(titles).not.toContain("Pale Fire");
       // Books that still have copies remain listed.
-      expect(titles).toContain("The Collected Stories");
+      expect(titles).toContain("Crime and Punishment");
     });
   });
 
   describe("GET /books/:id", () => {
     it("exposes Author, Availability, description, publishedYear and ISBN", async () => {
       const list = await authGet("/books");
-      const collected = (list.body as ApiBook[]).find(
-        (b) => b.title === "The Collected Stories",
+      const orwell = (list.body as ApiBook[]).find(
+        (b) => b.title === "Nineteen Eighty-Four",
       )!;
 
-      const res = await authGet(`/books/${collected.id}`);
+      const res = await authGet(`/books/${orwell.id}`);
       expect(res.status).toBe(200);
       const book = res.body as ApiBook;
-      expect(book.author.name).toBe("Petar Petrovic");
+      expect(book.author.name).toBe("George Orwell");
       expect(book.availability).toBe(book.totalCopies);
-      expect(book.publishedYear).toBe(1998);
+      expect(book.publishedYear).toBe(1949);
       expect(typeof book.isbn).toBe("string");
       expect(typeof book.description).toBe("string");
     });

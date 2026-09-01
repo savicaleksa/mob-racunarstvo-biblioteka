@@ -11,17 +11,14 @@ import {
   type AuthResponse,
   type JwtPayload,
 } from "@repo/shared";
-import * as bcrypt from "bcryptjs";
 import { eq, sql } from "drizzle-orm";
 
+import { hashPassword, verifyPassword } from "../common/password-hashing";
 import { DRIZZLE } from "../db/drizzle.module";
 import type { DrizzleDatabase } from "../db/connection";
 import { users, type User } from "../db/schema";
 import type { LoginDto } from "./dto/login.dto";
 import type { RegisterDto } from "./dto/register.dto";
-
-/** Work factor for bcrypt hashing — 10 rounds is the library default. */
-const BCRYPT_ROUNDS = 10;
 
 /**
  * Auth use-cases behind the HTTP layer (ADR-0005/0006): registration with the
@@ -54,7 +51,7 @@ export class AuthService {
     }
 
     const role = this.isFirstUser() ? Role.OWNER : Role.MEMBER;
-    const passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
+    const passwordHash = await hashPassword(dto.password);
 
     const inserted = this.db
       .insert(users)
@@ -83,7 +80,7 @@ export class AuthService {
       .where(eq(users.email, dto.email))
       .get();
 
-    if (!user || !(await bcrypt.compare(dto.password, user.passwordHash))) {
+    if (!user || !(await verifyPassword(dto.password, user.passwordHash))) {
       throw new UnauthorizedException("Invalid email or password");
     }
 
@@ -92,11 +89,7 @@ export class AuthService {
 
   /** Look up a user's public profile by id (the JWT `sub`) for `GET /auth/me`. */
   getProfile(userId: number): ApiUser {
-    const user = this.db
-      .select()
-      .from(users)
-      .where(eq(users.id, userId))
-      .get();
+    const user = this.db.select().from(users).where(eq(users.id, userId)).get();
 
     if (!user) {
       // Token verified but the user no longer exists (e.g. deleted).

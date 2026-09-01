@@ -6,8 +6,8 @@ import { sql, type SQL, type SQLWrapper } from "drizzle-orm";
  * A search query is split on whitespace into tokens; **every** token must appear
  * as a case-insensitive substring of the target expression, ANDed together and
  * order-independent. Each token becomes one escaped `LIKE '%' || token || '%'`
- * so a multi-word or reordered query still matches: `pet petr`,
- * `Petrovic Petar` and `eta etro` all match "Petar Petrovic".
+ * so a multi-word or reordered query still matches: `fyo dos`,
+ * `Dostoevsky Fyodor` and `yodo ostoe` all match "Fyodor Dostoevsky".
  *
  * Shared by the Authors and Books read APIs (issue 03) and reusable by Author
  * CRUD search (ticket 04): pass the SQL expression to match over (a single

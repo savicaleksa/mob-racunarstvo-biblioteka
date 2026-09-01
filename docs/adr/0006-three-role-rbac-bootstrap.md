@@ -11,4 +11,4 @@ Role assignment works by bootstrap: **the first user to register becomes `OWNER`
 
 ## Consequences
 
-- No users are seeded ([ADR-0004](0004-sqlite-uncommitted-db.md)) so that the bootstrap is exercised live: register (→ Owner), register again (→ Member), promote to Librarian.
+- ~~No users are seeded ([ADR-0004](0004-sqlite-uncommitted-db.md)) so that the bootstrap is exercised live: register (→ Owner), register again (→ Member), promote to Librarian.~~ **Revised by [ADR-0012](0012-seeded-demo-accounts.md):** the seed now creates one account per role, so a fresh clone can log in as any tier immediately. The bootstrap code is unchanged — its slot is simply already claimed, and accounts registered from the app come out `MEMBER`. The rule above that `OWNER` is never assignable _through the API_ is untouched.

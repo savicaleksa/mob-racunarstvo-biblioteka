@@ -21,13 +21,13 @@ A single [pnpm](https://pnpm.io) + [Turborepo](https://turborepo.dev) monorepo
 
 ## Grader quickstart
 
-Five steps from a fresh clone to exercising all three roles on a phone.
+Four steps from a fresh clone to exercising all three roles on a phone.
 
 ```sh
 # 1. Prerequisites (below), then install every workspace:
 pnpm install
 
-# 2. Recreate the database from migrations + seed the Catalog (one command):
+# 2. Recreate the database from migrations + seed it (one command):
 pnpm --filter @repo/api db:reset
 
 # 3. Start the API (port 3000) and the Expo dev server together:
@@ -36,8 +36,16 @@ pnpm dev
 # 4. Open the printed QR code in Expo Go on a phone sharing the same Wi-Fi.
 ```
 
-Then follow the [demo flow](#demo-flow-all-three-roles) to register the Owner,
-register a Member, and promote it to Librarian.
+Step 2 leaves you with a 100-Book Catalog and one account per role, all sharing
+the password `password123`:
+
+| Email                   | Role        | Password      |
+| ----------------------- | ----------- | ------------- |
+| `owner@example.com`     | `OWNER`     | `password123` |
+| `librarian@example.com` | `LIBRARIAN` | `password123` |
+| `member@example.com`    | `MEMBER`    | `password123` |
+
+Log in as any of them and follow the [demo flow](#demo-flow-all-three-roles).
 
 ## Prerequisites
 
@@ -61,17 +69,53 @@ pnpm --filter @repo/api db:reset
 ```
 
 This deletes any existing dev database (cross-platform, via Node `fs` — works on
-Windows/macOS/Linux), reapplies every migration, and runs the **Catalog seed**:
-4 Authors and 4 Books, and **no users**. Seeding no users is deliberate — the
-first account to register must claim the Owner role via the bootstrap, so a
-seeded user would steal that slot. Re-running is safe (the seed is idempotent).
+Windows/macOS/Linux), reapplies every migration, and runs the seed. That is all
+a fresh clone needs: no `.env`, no manual migration step, no fixtures to import.
 
-Related lower-level scripts, if you want the steps individually:
+### What the seed contains
+
+Both halves live in [`apps/api/src/db/seed.ts`](./apps/api/src/db/seed.ts):
+
+- **The Catalog** — **100 real Books by 76 real Authors**, from Dostoevsky and
+  Austen through Le Guin, Murakami and Harari. Every Book carries a real
+  publication year, a one-line description and a Total Copies between 1 and 5;
+  `isbn` is filled in only where a widely-circulated edition's ISBN-13 is known
+  and left `null` otherwise, rather than invented.
+- **Three demo accounts**, one per role, all with the password `password123`:
+  `owner@example.com` (`OWNER`), `librarian@example.com` (`LIBRARIAN`) and
+  `member@example.com` (`MEMBER`).
+
+Seeding the Owner **claims the first-user bootstrap slot**. Because the users
+table is no longer empty, an account registered through the app is a `MEMBER` —
+which is what you want for a demo: the three roles are there to log into from the
+first launch instead of having to be registered into existence.
+[ADR-0012](./docs/adr/0012-seeded-demo-accounts.md) records that decision, which
+revises the catalog-only seed of ADR-0004/0006.
+
+> These are demo credentials, published on purpose for a graded demo running over
+> HTTP with a default JWT secret. Don't carry them, or this posture, into anything
+> deployed.
+
+Re-running is safe: each half is idempotent and skips itself if the Catalog (any
+Author) or the users table is already populated, so it never duplicates rows or
+overwrites an account you created yourself. To genuinely start over — e.g. after
+issuing loans — use `db:reset`, which deletes the file first.
+
+### Lower-level scripts
+
+If you want the steps individually:
 
 ```sh
 pnpm --filter @repo/api db:generate   # regenerate a migration after editing src/db/schema.ts
 pnpm --filter @repo/api db:migrate    # apply migrations to the DATABASE_URL database
-pnpm --filter @repo/api db:seed       # seed the Catalog without deleting the DB first
+pnpm --filter @repo/api db:seed       # seed Catalog + demo users without deleting the DB first
+```
+
+`db:seed` and `db:reset` both honour `DATABASE_URL`, so you can seed a database
+somewhere other than the default `apps/api/library.db`:
+
+```sh
+DATABASE_URL=demo.db pnpm --filter @repo/api db:reset
 ```
 
 > Migrations are also applied automatically when the API boots (the connection
@@ -90,11 +134,11 @@ The API listens on **`http://localhost:3000`** and prints the URL on boot.
 
 Config via env vars:
 
-| Variable       | Default               | Purpose                                   |
-| -------------- | --------------------- | ----------------------------------------- |
-| `PORT`         | `3000`                | Port the API listens on.                  |
-| `DATABASE_URL` | `library.db`          | SQLite file path (relative to `apps/api`).|
-| `JWT_SECRET`   | `dev-secret-change-me`| HMAC secret for signing JWTs.             |
+| Variable       | Default                | Purpose                                    |
+| -------------- | ---------------------- | ------------------------------------------ |
+| `PORT`         | `3000`                 | Port the API listens on.                   |
+| `DATABASE_URL` | `library.db`           | SQLite file path (relative to `apps/api`). |
+| `JWT_SECRET`   | `dev-secret-change-me` | HMAC secret for signing JWTs.              |
 
 The defaults are fine for grading — no `.env` file is required.
 
@@ -135,25 +179,32 @@ The phone and the machine running the API must share a network (unless tunneling
 
 ## Demo flow (all three roles)
 
-The Owner is the **first account to register** — there is no seeded user. Roles
-are demonstrated entirely through the app:
+The seed creates one account per role, so every tier is reachable from the login
+screen — all three use the password `password123`:
 
-1. **Register the first account → Owner.** On the register screen, sign up with
-   any email + password (password min 8 chars). Because the users table is
-   empty, the bootstrap makes this account the **Owner**. It lands on the Owner
-   screens and also has every Librarian power.
-2. **Register a second account → Member.** Log out, register a different email.
-   Every account after the first defaults to **Member** — it sees only the
-   catalog and its own loans.
-3. **Promote the Member to Librarian.** Back as the Owner, open the **Owner
-   Users** screen: it lists every user with their numeric **ID**. Promote the
-   Member to **Librarian** (and you can **demote** back to Member) — this
-   demonstrates all three tiers and role management. Owner is never assignable;
-   it exists only via the first-user bootstrap.
-4. **Use the Librarian screens.** The Owner reaches the Librarian screens (manage
-   the catalog, issue loans, record returns) via the **"Library management"**
-   button on the Owner Users screen. The promoted Librarian account gets those
-   screens directly on login.
+1. **Log in as `member@example.com` → Member.** It sees only the catalog (100
+   Books) and its own loans.
+2. **Log in as `librarian@example.com` → Librarian.** It manages the catalog
+   (books and authors), issues loans and records returns.
+3. **Log in as `owner@example.com` → Owner.** It lands on the Owner **Users**
+   screen, which lists every user with their numeric **ID**, and can promote a
+   Member to **Librarian** or demote one back. The Owner also reaches the
+   Librarian screens via the **"Library management"** button there.
+
+To see role management do something, register a new account from the app: the
+seeded users table is not empty, so it comes out a **Member**. Then promote it to
+Librarian from the Owner Users screen, and demote it back.
+
+`OWNER` remains **unassignable through the API** — `PATCH /users/:id/role` refuses
+it as a target ([ADR-0006](docs/adr/0006-three-role-rbac-bootstrap.md)). The one
+Owner comes from the seed writing to the database directly, which is why
+[ADR-0012](docs/adr/0012-seeded-demo-accounts.md) records seeding accounts as a
+deliberate revision of the original "register your way in" flow.
+
+> Want to watch the bootstrap itself — first registered account becomes the
+> Owner? Delete `apps/api/library.db` and start the API without seeding: the
+> connection factory applies the migrations on boot, so the first account you
+> register into that empty users table is the Owner.
 
 ### Issuing a loan — identify the borrower by email
 
