@@ -16,6 +16,7 @@ import {
 import { getErrorMessage } from "../../../../src/api/errors";
 import { useActiveLoans, useReturnLoan } from "../../../../src/api/loans";
 import { formatDate } from "../../../../src/ui/format";
+import { useRefreshControl } from "../../../../src/ui/use-refresh-control";
 
 /**
  * Active Loans tab (ticket 10): everything currently out on loan in one place —
@@ -28,6 +29,7 @@ export default function ActiveLoansScreen() {
   const router = useRouter();
   const { data, isPending, isError, error, refetch } = useActiveLoans();
   const returnLoan = useReturnLoan();
+  const refreshControl = useRefreshControl(refetch);
   const [snackbar, setSnackbar] = useState<string | null>(null);
 
   function confirmReturn(loan: ActiveLoanRow) {
@@ -73,9 +75,13 @@ export default function ActiveLoansScreen() {
   return (
     <View style={styles.flex}>
       <FlatList
-        data={data ?? []}
+        data={data}
         keyExtractor={(loan) => String(loan.id)}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[
+          styles.listContent,
+          data.length === 0 ? styles.listContentEmpty : null,
+        ]}
+        refreshControl={refreshControl}
         ListEmptyComponent={
           <View style={styles.centered}>
             <Text variant="bodyMedium" style={styles.dim}>
@@ -167,7 +173,9 @@ function LoanRow({
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  listContent: { padding: 12, gap: 8, paddingBottom: 96 },
+  listContent: { padding: 12, gap: 8, paddingBottom: 96, flexGrow: 1 },
+  // No cards to clear the FAB of, so drop the clearance and centre honestly.
+  listContentEmpty: { paddingBottom: 12 },
   cardContent: { gap: 4 },
   dueRow: {
     flexDirection: "row",

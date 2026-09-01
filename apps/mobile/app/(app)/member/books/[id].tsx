@@ -10,6 +10,7 @@ import {
 
 import { getErrorMessage } from "../../../../src/api/errors";
 import { useBook } from "../../../../src/api/books";
+import { useRefreshControl } from "../../../../src/ui/use-refresh-control";
 
 /**
  * Book detail screen (ticket 09): a Book's full details — Author, current
@@ -21,6 +22,8 @@ export default function BookDetailScreen() {
   const params = useLocalSearchParams<{ id: string }>();
   const id = Number(params.id);
   const { data: book, isPending, isError, error, refetch } = useBook(id);
+  // Availability drifts as others borrow it (ADR-0007), so allow a re-check.
+  const refreshControl = useRefreshControl(refetch);
 
   if (isPending) {
     return (
@@ -48,7 +51,10 @@ export default function BookDetailScreen() {
   const borrowable = book.availability > 0;
 
   return (
-    <ScrollView contentContainerStyle={styles.content}>
+    <ScrollView
+      contentContainerStyle={styles.content}
+      refreshControl={refreshControl}
+    >
       <Stack.Screen options={{ title: book.title }} />
 
       <Text variant="headlineSmall">{book.title}</Text>

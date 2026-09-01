@@ -13,6 +13,7 @@ import {
 
 import { useAuthors } from "../../../../src/api/authors";
 import { getErrorMessage } from "../../../../src/api/errors";
+import { useRefreshControl } from "../../../../src/ui/use-refresh-control";
 
 /**
  * Authors management tab (ticket 10): the roster the Librarian curates. Search
@@ -33,6 +34,7 @@ export default function LibrarianAuthorsScreen() {
   const { data, isPending, isError, error, refetch } = useAuthors({
     search: debouncedQuery,
   });
+  const refreshControl = useRefreshControl(refetch);
 
   const controls = (
     <View style={styles.controls}>
@@ -64,9 +66,13 @@ export default function LibrarianAuthorsScreen() {
         </View>
       ) : (
         <FlatList
-          data={data ?? []}
+          data={data}
           keyExtractor={(author) => String(author.id)}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[
+            styles.listContent,
+            data.length === 0 ? styles.listContentEmpty : null,
+          ]}
+          refreshControl={refreshControl}
           ListEmptyComponent={
             <EmptyState label="No authors yet. Tap + to add one." />
           }
@@ -125,7 +131,15 @@ function EmptyState({ label }: { label: string }) {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   controls: { padding: 12, gap: 12 },
-  listContent: { padding: 12, paddingTop: 0, gap: 8, paddingBottom: 96 },
+  listContent: {
+    padding: 12,
+    paddingTop: 0,
+    gap: 8,
+    paddingBottom: 96,
+    flexGrow: 1,
+  },
+  // No cards to clear the FAB of, so drop the clearance and centre honestly.
+  listContentEmpty: { paddingBottom: 12 },
   centered: {
     flex: 1,
     alignItems: "center",

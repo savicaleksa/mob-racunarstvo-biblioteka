@@ -16,6 +16,7 @@ import {
 import { getErrorMessage } from "../../../src/api/errors";
 import { useUpdateUserRole, useUsers } from "../../../src/api/users";
 import { useAuth } from "../../../src/auth/auth-context";
+import { useRefreshControl } from "../../../src/ui/use-refresh-control";
 
 /** Human-readable label for each assignable role in the toggle. */
 const ROLE_LABEL: Record<AssignableRole, string> = {
@@ -37,6 +38,7 @@ export default function OwnerUsersScreen() {
   const { user: me } = useAuth();
   const { data, isPending, isError, error, refetch } = useUsers();
   const updateRole = useUpdateUserRole();
+  const refreshControl = useRefreshControl(refetch);
   const [snackbar, setSnackbar] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<number | null>(null);
 
@@ -91,6 +93,7 @@ export default function OwnerUsersScreen() {
           data={data ?? []}
           keyExtractor={(user) => String(user.id)}
           contentContainerStyle={styles.listContent}
+          refreshControl={refreshControl}
           ListHeaderComponent={libraryLink}
           ListEmptyComponent={
             <View style={styles.centered}>
@@ -172,7 +175,7 @@ function UserRow({
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   controls: { paddingBottom: 12, gap: 6 },
-  listContent: { padding: 12, gap: 8, paddingBottom: 24 },
+  listContent: { padding: 12, gap: 8, paddingBottom: 24, flexGrow: 1 },
   cardContent: { gap: 4 },
   ownerRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   centered: {

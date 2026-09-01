@@ -12,6 +12,7 @@ import {
 
 import { useAuthor, useDeleteAuthor } from "../../../../src/api/authors";
 import { getErrorMessage } from "../../../../src/api/errors";
+import { useRefreshControl } from "../../../../src/ui/use-refresh-control";
 
 /**
  * Author detail (ticket 10, user stories 24–26): view one Author, then Edit or
@@ -27,6 +28,7 @@ export default function LibrarianAuthorDetailScreen() {
   const theme = useTheme();
   const { data: author, isPending, isError, error, refetch } = useAuthor(id);
   const deleteAuthor = useDeleteAuthor();
+  const refreshControl = useRefreshControl(refetch);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   function confirmDelete() {
@@ -78,7 +80,10 @@ export default function LibrarianAuthorDetailScreen() {
   return (
     <View style={styles.flex}>
       <Stack.Screen options={{ title: author.name }} />
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        refreshControl={refreshControl}
+      >
         <Text variant="headlineSmall">{author.name}</Text>
         {author.birthYear !== null ? (
           <Text variant="titleMedium" style={styles.dim}>

@@ -15,6 +15,7 @@ import {
 import { getErrorMessage } from "../../../../src/api/errors";
 import { useAuthors } from "../../../../src/api/authors";
 import { useBooks } from "../../../../src/api/books";
+import { useRefreshControl } from "../../../../src/ui/use-refresh-control";
 
 /** Which entity the search box is querying. */
 type SearchMode = "books" | "authors";
@@ -46,6 +47,9 @@ export default function CatalogScreen() {
   const booksQuery = useBooks({ search: debouncedQuery, available: availableOnly });
   const authorsQuery = useAuthors({ search: debouncedQuery });
   const active = mode === "books" ? booksQuery : authorsQuery;
+  // Only the mode on screen is refetched — refreshing the hidden one would be
+  // a wasted request on a phone reaching the API over the LAN (ADR-0010).
+  const refreshControl = useRefreshControl(active.refetch);
 
   const controls = (
     <View style={styles.controls}>
@@ -119,6 +123,7 @@ export default function CatalogScreen() {
           data={authorsQuery.data ?? []}
           keyExtractor={(author) => String(author.id)}
           contentContainerStyle={styles.listContent}
+          refreshControl={refreshControl}
           ListEmptyComponent={<EmptyState label="No authors match your search." />}
           renderItem={({ item }) => (
             <AuthorRow author={item} onPress={() => jumpToAuthorBooks(item)} />
@@ -135,6 +140,7 @@ export default function CatalogScreen() {
         data={booksQuery.data ?? []}
         keyExtractor={(book) => String(book.id)}
         contentContainerStyle={styles.listContent}
+        refreshControl={refreshControl}
         ListEmptyComponent={
           <EmptyState
             label={
@@ -237,7 +243,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   controls: { padding: 12, gap: 12 },
   filterChip: { alignSelf: "flex-start" },
-  listContent: { padding: 12, paddingTop: 0, gap: 8 },
+  listContent: { padding: 12, paddingTop: 0, gap: 8, flexGrow: 1 },
   centered: {
     flex: 1,
     alignItems: "center",

@@ -13,6 +13,7 @@ import {
 import { getErrorMessage } from "../../../../src/api/errors";
 import { useMyLoans } from "../../../../src/api/loans";
 import { formatDate } from "../../../../src/ui/format";
+import { useRefreshControl } from "../../../../src/ui/use-refresh-control";
 
 /**
  * My Loans screen (ticket 09): the Member's own current (Active) and past
@@ -23,6 +24,7 @@ import { formatDate } from "../../../../src/ui/format";
  */
 export default function MyLoansScreen() {
   const { data, isPending, isError, error, refetch } = useMyLoans();
+  const refreshControl = useRefreshControl(refetch);
 
   const sections = useMemo(() => {
     const loans = data ?? [];
@@ -71,23 +73,23 @@ export default function MyLoansScreen() {
     );
   }
 
-  if (sections.length === 0) {
-    return (
-      <View style={styles.centered}>
-        <Text variant="bodyMedium" style={styles.dim}>
-          You have no loans yet. Borrow a Book from the Catalog and it will appear
-          here.
-        </Text>
-      </View>
-    );
-  }
-
   return (
     <SectionList
       sections={sections}
       keyExtractor={(loan) => String(loan.id)}
       contentContainerStyle={styles.listContent}
+      refreshControl={refreshControl}
       stickySectionHeadersEnabled={false}
+      // Rendered by the list rather than as an early return, so a Member who
+      // has just borrowed a Book can pull to check for it without leaving.
+      ListEmptyComponent={
+        <View style={styles.centered}>
+          <Text variant="bodyMedium" style={styles.dim}>
+            You have no loans yet. Borrow a Book from the Catalog and it will
+            appear here.
+          </Text>
+        </View>
+      }
       renderSectionHeader={({ section }) => (
         <Text variant="titleMedium" style={styles.sectionHeader}>
           {section.title}
@@ -142,7 +144,7 @@ function LoanRow({ loan }: { loan: MyLoan }) {
 }
 
 const styles = StyleSheet.create({
-  listContent: { padding: 12, gap: 8 },
+  listContent: { padding: 12, gap: 8, flexGrow: 1 },
   sectionHeader: { marginTop: 8, marginBottom: 4 },
   cardContent: { gap: 4 },
   dueRow: {

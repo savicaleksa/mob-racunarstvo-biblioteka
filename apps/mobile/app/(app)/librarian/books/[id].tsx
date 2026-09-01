@@ -13,6 +13,7 @@ import {
 
 import { useBook, useDeleteBook } from "../../../../src/api/books";
 import { getErrorMessage } from "../../../../src/api/errors";
+import { useRefreshControl } from "../../../../src/ui/use-refresh-control";
 
 /**
  * Book detail for the Librarian (ticket 10, user stories 29–31): the Book's
@@ -28,6 +29,8 @@ export default function LibrarianBookDetailScreen() {
   const theme = useTheme();
   const { data: book, isPending, isError, error, refetch } = useBook(id);
   const deleteBook = useDeleteBook();
+  // Availability drifts as readers borrow it (ADR-0007), so allow a re-check.
+  const refreshControl = useRefreshControl(refetch);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   function confirmDelete() {
@@ -79,7 +82,10 @@ export default function LibrarianBookDetailScreen() {
   return (
     <View style={styles.flex}>
       <Stack.Screen options={{ title: book.title }} />
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        refreshControl={refreshControl}
+      >
         <Text variant="headlineSmall">{book.title}</Text>
         <Text variant="titleMedium" style={styles.author}>
           {book.author.name}
