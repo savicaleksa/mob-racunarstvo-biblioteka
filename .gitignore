@@ -49,3 +49,6 @@ yarn-error.log*
 # Misc
 .DS_Store
 *.pem
+
+# Lokalne beleske za odbranu projekta (nisu deo repozitorijuma)
+ODBRANA-PITANJA.html
